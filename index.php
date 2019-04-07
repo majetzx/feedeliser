@@ -1,18 +1,23 @@
 <?php
+// Feedeliser - Main script
+
+require_once 'config.php';
 require_once 'functions.php';
+
 ini_set('display_errors', 0);
+define('FEEDELISER_VERSION', '0');
 
 // Feed name in query string
 $feed_name = filter_input(INPUT_SERVER, 'QUERY_STRING', FILTER_SANITIZE_STRING);
 
 // No configuration file
-if (!is_file("config/$feed_name.php"))
+if (!is_file(FEEDS_CONFS_DIR . "/$feed_name.php"))
 {
     log_data("feed $feed_name: missing configuration file");
     exit;
 }
 
-$feed_config = require "config/$feed_name.php";
+$feed_config = require FEEDS_CONFS_DIR . "/$feed_name.php";
 if (!isset($feed_config['url']) || !isset($feed_config['blocks']) || !isset($feed_config['block_callback']))
 {
     log_data("feed $feed_name: incomplete configuration file");
@@ -21,7 +26,7 @@ if (!isset($feed_config['url']) || !isset($feed_config['blocks']) || !isset($fee
 
 // Get the feed/page
 $ch = curl_init($feed_config['url']);
-curl_setopt($ch, CURLOPT_USERAGENT, 'Feedeliser/xxx (+https://github.com/majetzx/feedeliser)');
+curl_setopt($ch, CURLOPT_USERAGENT, 'Feedeliser/' . FEEDELISER_VERSION . ' (+https://github.com/majetzx/feedeliser)');
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
 if (isset($feed_config['gzip']) && $feed_config['gzip'])
 {
@@ -43,7 +48,7 @@ if ($http_code != 200)
 }
 
 // Cache SQlite database
-$feeds_cache = new SQLite3('datas/feeds.sqlite', SQLITE3_OPEN_READWRITE);
+$feeds_cache = new SQLite3(SQLITE_CACHE_DB_PATH, SQLITE3_OPEN_READWRITE);
 
 // Analyze the HTML/XML using DOM and XPath, create returned XML
 header('Content-Type: application/xml');
@@ -62,6 +67,7 @@ if (isset($feed_config['xml']) && $feed_config['xml'])
     $blocks = $xpath->query($feed_config['blocks']);
     if ($blocks)
     {
+		// Call the callback on each block
         foreach ($blocks as $block)
         {
             $xpath2 = new DOMXpath($doc);
@@ -86,6 +92,7 @@ else
     $xpath = new DOMXpath($doc);
     $blocks = $xpath->query($feed_config['blocks']);
     $blocks_infos = array();
+	// Call the callback on each block
     if ($blocks)
     {
         foreach ($blocks as $block)
@@ -126,6 +133,7 @@ EOT;
 unset($doc);
 $feeds_cache->close();
 
+// Optional final callback
 if (isset($feed_config['finalize']) && is_callable($feed_config['finalize']))
 {
     $data = $feed_config['finalize']($data);

@@ -1,16 +1,20 @@
 <?php
+// Feedeliser - Cache cleaning (called via cron)
+
+require_once 'config.php';
 require_once 'functions.php';
+
 ini_set('display_errors', 0);
 
-$size_before = filesize('datas/feeds.sqlite');
-$feeds_cache = new SQLite3('datas/feeds.sqlite', SQLITE3_OPEN_READWRITE);
+$size_before = filesize(SQLITE_CACHE_DB_PATH);
+$feeds_cache = new SQLite3(SQLITE_CACHE_DB_PATH, SQLITE3_OPEN_READWRITE);
 $urls_before = get_url_number($feeds_cache);
 
 // The feeds
 foreach(scandir('.') as $path)
 {
     // Only feeds configuration files
-    if (!is_file($path) || $path == 'index.php' || $path == 'clean_cache.php' || $path == 'functions.php' || pathinfo($path, PATHINFO_EXTENSION) != 'php')
+    if (!is_file($path) || $path == 'index.php' || $path == 'config.php' || $path == 'clean_cache.php' || $path == 'functions.php' || pathinfo($path, PATHINFO_EXTENSION) != 'php')
     {
         continue;
     }
@@ -44,7 +48,7 @@ $urls_after = get_url_number($feeds_cache);
 // Clean up empty space
 $feeds_cache->exec('VACUUM');
 $feeds_cache->close();
-$size_after = filesize('datas/feeds.sqlite');
+$size_after = filesize(SQLITE_CACHE_DB_PATH);
 
 // Summary
 $size_diff = $size_before - $size_after;
