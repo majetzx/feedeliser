@@ -23,14 +23,14 @@ foreach(scandir('.') as $path)
     $feed_name = pathinfo($path, PATHINFO_FILENAME);
     echo "Feed $feed_name: ";
     
-	// If the feed does not have a cache limit (uncached feed)
+    // If the feed does not have a cache limit (uncached feed)
     if (!isset($feed_config['feed_cache_limit']))
     {
         echo 'no cache limit' . PHP_EOL;
         continue;
     }
     
-	// Calculate the date before which entries must be deleted
+    // Calculate the date before which entries must be deleted
     $last_access = time() - $feed_config['feed_cache_limit'];
     echo 'delete before ' . date('Y-m-d H:i:s', $last_access);
     $stmt = $feeds_cache->prepare('DELETE FROM feed_entry WHERE feed=:feed AND last_access<:datetime');

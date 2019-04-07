@@ -1,6 +1,8 @@
 <?php
 // Feedeliser - Functions
 
+use Readability\Readability;
+
 /**
  * Get the content from a URL
  *
@@ -15,19 +17,19 @@
  */
 function get_url_content($feed_name, $url, $after_first_url = null, $custom_html_cleaner = null, $original_title = null)
 {
-	// The SQLite database containing web pages cache
+    // The SQLite database containing web pages cache
     global $feeds_cache;
     
     $title = $content = $status = '';
     
-	// Check if URL is already in cache
+    // Check if URL is already in cache
     $stmt = $feeds_cache->prepare('SELECT title, content FROM feed_entry WHERE feed=:feed AND url=:url');
     $stmt->bindValue(':feed', $feed_name, SQLITE3_TEXT);
     $stmt->bindValue(':url', $url, SQLITE3_TEXT);
     $result = $stmt->execute();
     $row = $result->fetchArray();
     
-	// A result: read values and update the last access timestamp
+    // A result: read values and update the last access timestamp
     if ($row)
     {
         $status = 'cache';
@@ -40,7 +42,7 @@ function get_url_content($feed_name, $url, $after_first_url = null, $custom_html
         $stmt2->execute();
         $stmt2->close();
     }
-	// No result: get values and store them if successful
+    // No result: get values and store them if successful
     else
     {
         $json = web_parser($url, $custom_html_cleaner, $original_title);
@@ -49,7 +51,7 @@ function get_url_content($feed_name, $url, $after_first_url = null, $custom_html
         $title = $json->title ?: '';
         $content = $json->content;
         
-		// Get additional content
+        // Get additional content
         if (is_callable($after_first_url))
         {
             $urls = call_user_func($after_first_url, $url);
@@ -98,47 +100,18 @@ function get_url_content($feed_name, $url, $after_first_url = null, $custom_html
  */
 function web_parser($url, $custom_html_cleaner = null, $original_title = null)
 {
-	// Delete the query string from URL
+    // Delete the query string from URL
     $url_parts = parse_url($url);
     $url = $url_parts['scheme'] . '://' . $url_parts['host'] . $url_parts['path'];
     
-	// Get the content with Mercury web parser
-    $ch = curl_init("https://mercury.postlight.com/parser?url=$url");
-    curl_setopt($ch, CURLOPT_USERAGENT, 'curl/' . curl_version()['version']);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_HTTPHEADER, array(
-        'Content-Type: application/json',
-        'x-api-key: K6Mc1SbkYgGkGV1YPjnSy8J2v19I2Qq0Sv7J0UMk',
-    ));
-    $json = curl_exec($ch);
-    
-    $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-    
-	// If everything is ok, return the content
-    if ($http_code == 200 && $json !== false)
-    {
-        $json = json_decode($json);
-        if (is_object($json) && isset($json->content))
-        {
-            log_data("OK Mercury");
-            if ($original_title)
-            {
-                $json->title = $original_title;
-            }
-            return $json;
-        }
-    }
-    
-	// In case of error, try to get the page's full content
+    // Get the whole web page content
     $ch = curl_init($url);
-    curl_setopt($ch, CURLOPT_USERAGENT, "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.13; rv:64.0) Gecko/20100101 Firefox/64.0");
+    curl_setopt($ch, CURLOPT_USERAGENT, "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.14; rv:67.0) Gecko/20100101 Firefox/67.0");
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_HTTPHEADER, array(
         'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
         'Accept-Language: en-US,en;q=0.5',
         'Cache-Control: no-cache',
-        'DNT: 1',
     ));
     $full_html = curl_exec($ch);
     $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
@@ -147,8 +120,21 @@ function web_parser($url, $custom_html_cleaner = null, $original_title = null)
     $json = new StdClass;
     if ($http_code == 200 && $full_html !== false)
     {
-		// A callback to clean the content
-        if (is_callable($custom_html_cleaner))
+        $readability = new Readability($full_html, $url);
+        if ($readability->init())
+        {
+            $json->title = $readability->getTitle()->textContent;
+            $json->content = $readability->getContent()->textContent;
+        }
+        else
+        {
+            log_data("web_parser($url) : Readability error");
+            $json->title = "⚠️ $original_title";
+            $json->content = $full_html;
+        }
+        
+        // A callback to clean the content
+        /*if (is_callable($custom_html_cleaner))
         {
             list($content, $title) = call_user_func($custom_html_cleaner, $full_html, $original_title);
             $json->title = $title;
@@ -159,12 +145,12 @@ function web_parser($url, $custom_html_cleaner = null, $original_title = null)
             log_data("web_parser($url) : no custom_html_cleaner callback");
             $json->title = $original_title;
             $json->content = $full_html;
-        }
+        }*/
     }
     else
     {
         log_data("web_parser($url) : error retrieving ($http_code)");
-        $json->title = '⚠️ ' . $original_title;
+        $json->title = "⚠️⚠️ $original_title";
         $json->content = "Can't get content (web_parser).";
     }
     

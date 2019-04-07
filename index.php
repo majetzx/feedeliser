@@ -3,6 +3,7 @@
 
 require_once 'config.php';
 require_once 'functions.php';
+require_once 'vendor/autoload.php';
 
 ini_set('display_errors', 0);
 define('FEEDELISER_VERSION', '0');
@@ -67,7 +68,7 @@ if (isset($feed_config['xml']) && $feed_config['xml'])
     $blocks = $xpath->query($feed_config['blocks']);
     if ($blocks)
     {
-		// Call the callback on each block
+        // Call the callback on each block
         foreach ($blocks as $block)
         {
             $xpath2 = new DOMXpath($doc);
@@ -92,7 +93,7 @@ else
     $xpath = new DOMXpath($doc);
     $blocks = $xpath->query($feed_config['blocks']);
     $blocks_infos = array();
-	// Call the callback on each block
+    // Call the callback on each block
     if ($blocks)
     {
         foreach ($blocks as $block)
