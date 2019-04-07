@@ -42,7 +42,7 @@ function get_url_content($feed_name, $url, $after_first_url = null, $custom_html
     else
     {
         $json = web_parser($url, $custom_html_cleaner, $original_title);
-        log_data("retour web_parser() : title = $json->title");
+        log_data("web_parser() return : title = $json->title");
         $status = 'new';
         $title = $json->title ?: '';
         $content = $json->content;
@@ -119,7 +119,7 @@ function web_parser($url, $custom_html_cleaner = null, $original_title = null)
         $json = json_decode($json);
         if (is_object($json) && isset($json->content))
         {
-            log_data("OK mercury");
+            log_data("OK Mercury");
             if ($original_title)
             {
                 $json->title = $original_title;
@@ -154,16 +154,16 @@ function web_parser($url, $custom_html_cleaner = null, $original_title = null)
         }
         else
         {
-            log_data("web_parser($url) : pas de callback custom_html_cleaner");
+            log_data("web_parser($url) : no custom_html_cleaner callback");
             $json->title = $original_title;
             $json->content = $full_html;
         }
     }
     else
     {
-        log_data("web_parser($url) : erreur de récupération ($http_code)");
+        log_data("web_parser($url) : error retrieving ($http_code)");
         $json->title = '⚠️ ' . $original_title;
-        $json->content = "Impossible de récupérer le contenu (web_parser).";
+        $json->content = "Can't get content (web_parser).";
     }
     
     return $json;
