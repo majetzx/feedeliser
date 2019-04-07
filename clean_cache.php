@@ -2,8 +2,8 @@
 require_once 'functions.php';
 ini_set('display_errors', 0);
 
-$size_before = filesize('feeds.sqlite');
-$feeds_cache = new SQLite3('feeds.sqlite', SQLITE3_OPEN_READWRITE);
+$size_before = filesize('datas/feeds.sqlite');
+$feeds_cache = new SQLite3('datas/feeds.sqlite', SQLITE3_OPEN_READWRITE);
 $urls_before = get_url_number($feeds_cache);
 
 // The feeds
@@ -44,7 +44,7 @@ $urls_after = get_url_number($feeds_cache);
 // Clean up empty space
 $feeds_cache->exec('VACUUM');
 $feeds_cache->close();
-$size_after = filesize('feeds.sqlite');
+$size_after = filesize('datas/feeds.sqlite');
 
 // Summary
 $size_diff = $size_before - $size_after;

@@ -252,5 +252,5 @@ function human_filesize($bytes, $decimals = 2)
  */
 function log_data($data)
 {
-    file_put_contents('log', date('[c] ') . (string) $data . PHP_EOL, FILE_APPEND);
+    file_put_contents('datas/log', date('[c] ') . (string) $data . PHP_EOL, FILE_APPEND);
 }

@@ -43,7 +43,7 @@ if ($http_code != 200)
 }
 
 // Cache SQlite database
-$feeds_cache = new SQLite3('feeds.sqlite', SQLITE3_OPEN_READWRITE);
+$feeds_cache = new SQLite3('datas/feeds.sqlite', SQLITE3_OPEN_READWRITE);
 
 // Analyze the HTML/XML using DOM and XPath, create returned XML
 header('Content-Type: application/xml');
