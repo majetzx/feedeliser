@@ -6,13 +6,13 @@ ini_set('display_errors', 0);
 $feed_name = filter_input(INPUT_SERVER, 'QUERY_STRING', FILTER_SANITIZE_STRING);
 
 // No configuration file
-if (!is_file("$feed_name.php"))
+if (!is_file("config/$feed_name.php"))
 {
     log_data("feed $feed_name: missing configuration file");
     exit;
 }
 
-$feed_config = require "$feed_name.php";
+$feed_config = require "config/$feed_name.php";
 if (!isset($feed_config['url']) || !isset($feed_config['blocks']) || !isset($feed_config['block_callback']))
 {
     log_data("feed $feed_name: incomplete configuration file");
