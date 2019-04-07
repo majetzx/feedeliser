@@ -7,6 +7,7 @@
 		"php": "^7.0",
         "ext-curl": "*",
 		"ext-sqlite3": "*",
-		"ext-libxml": "*"
+		"ext-libxml": "*",
+		"j0k3r/php-readability": "^1.0"
     }
 }
