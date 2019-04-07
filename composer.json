@@ -1,0 +1,12 @@
+{
+	"name": "tenzenxen/feedeliser",
+	"description": "Transform a web page into an RSS feed, or make a complete feed from a truncated one",
+	"type": "project",
+	"homepage": "https://github.com/majetzx/feedeliser",
+    "require": {
+		"php": "^7.0",
+        "ext-curl": "*",
+		"ext-sqlite3": "*",
+		"ext-libxml": "*"
+    }
+}
