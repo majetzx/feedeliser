@@ -25,6 +25,7 @@ function get_url($url, $gzip = false)
         'Accept-Language: en-US,en;q=0.5',
         'Cache-Control: no-cache',
     ));
+    curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
     $http_body = curl_exec($ch);
     $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
