@@ -3,6 +3,10 @@
 
 use Readability\Readability;
 
+use andreskrey\Readability\Readability;
+use andreskrey\Readability\Configuration;
+use andreskrey\Readability\ParseException;
+
 /**
  * Get the content from a URL, with curl
  *
@@ -147,7 +151,7 @@ function web_parser($url, $custom_html_cleaner = null, $original_title = null, $
     $json = new StdClass;
     if ($http_code == 200 && $full_html !== false)
     {
-        $readability = new Readability($full_html, $url);
+        /*$readability = new Readability($full_html, $url);
         if ($readability->init())
         {
             $json->title = $readability->getTitle()->textContent;
@@ -156,6 +160,20 @@ function web_parser($url, $custom_html_cleaner = null, $original_title = null, $
         else
         {
             log_data("web_parser($url) : Readability error");
+            $json->title = "⚠️ $original_title";
+            $json->content = $full_html;
+        }*/
+        
+        $readability = new Readability(new Configuration());
+        try
+        {
+            $readability->parse($full_html);
+            $json->title = $readability->getTitle();
+            $json->content = $readability->getContent();
+        }
+        catch (ParseException $e)
+        {
+            log_data("web_parser($url) : Readability error, " . $e->getMessage());
             $json->title = "⚠️ $original_title";
             $json->content = $full_html;
         }

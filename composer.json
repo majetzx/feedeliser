@@ -8,6 +8,7 @@
         "ext-curl": "*",
 		"ext-sqlite3": "*",
 		"ext-libxml": "*",
-		"j0k3r/php-readability": "^1.0"
+		"j0k3r/php-readability": "^1.0",
+        "andreskrey/readability.php": "^2.0"
     }
 }
