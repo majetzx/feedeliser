@@ -26,21 +26,9 @@ if (!isset($feed_config['url']) || !isset($feed_config['blocks']) || !isset($fee
 }
 
 // Get the feed/page
-$ch = curl_init($feed_config['url']);
-curl_setopt($ch, CURLOPT_USERAGENT, 'Feedeliser/' . FEEDELISER_VERSION . ' (+https://github.com/majetzx/feedeliser)');
-curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-if (isset($feed_config['gzip']) && $feed_config['gzip'])
-{
-    curl_setopt($ch, CURLOPT_ENCODING, 'gzip');
-}
-curl_setopt($ch, CURLOPT_HTTPHEADER, array(
-    'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-    'Accept-Language: en-US,en;q=0.5',
-    'Cache-Control: no-cache',
-));
-$data = curl_exec($ch);
-$http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-curl_close($ch);
+$url_data = get_url($feed_config['url'], $feed_config['gzip'] ?? false);
+$feed_body = $url_data['http_body'];
+$http_code = $url_data['http_code'];
 
 if ($http_code != 200)
 {
@@ -59,7 +47,7 @@ $doc = new DOMDocument();
 // An XML feed
 if (isset($feed_config['xml']) && $feed_config['xml'])
 {
-    $doc->loadXML($data);
+    $doc->loadXML($feed_body);
     $xpath = new DOMXpath($doc);
     if (isset($feed_config['ns']) && is_array($feed_config['ns']))
     {
@@ -83,13 +71,13 @@ if (isset($feed_config['xml']) && $feed_config['xml'])
     unset($xpath);
     
     // RSS feed
-    $data = $doc->saveXML();
+    $output_data = $doc->saveXML();
 }
 
 // An HTML page
 else
 {
-    $doc->loadHTML($data);
+    $doc->loadHTML($feed_body);
     $xpath = new DOMXpath($doc);
     $blocks = $xpath->query($feed_config['blocks']);
     $blocks_infos = array();
@@ -105,7 +93,7 @@ else
     
     // RSS feed
     $feed_title = $feed_config['title'] ?? $feed_name;
-    $data = "<?xml version=\"1.0\" encoding=\"UTF-8\" ?>
+    $output_data = "<?xml version=\"1.0\" encoding=\"UTF-8\" ?>
 <rss version=\"2.0\">
     <channel>
         <title>$feed_title</title>
@@ -116,7 +104,7 @@ else
         $block['title'] = htmlspecialchars($block['title'], ENT_XML1);
         $block['description'] = htmlspecialchars($block['description'], ENT_XML1);
         
-        $data .= <<<EOT
+        $output_data .= <<<EOT
         <item>
             <title>{$block['title']}</title>
             <link>{$block['url']}</link>
@@ -127,7 +115,7 @@ else
 EOT;
     }
     
-    $data .= "    </channel>
+    $output_data .= "    </channel>
 </rss>";
 }
 
@@ -137,7 +125,7 @@ $feeds_cache->close();
 // Optional final callback
 if (isset($feed_config['finalize']) && is_callable($feed_config['finalize']))
 {
-    $data = $feed_config['finalize']($data);
+    $output_data = $feed_config['finalize']($output_data);
 }
 
-echo $data;
+echo $output_data;

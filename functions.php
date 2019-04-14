@@ -4,18 +4,51 @@
 use Readability\Readability;
 
 /**
- * Get the content from a URL
+ * Get the content from a URL, with curl
+ *
+ * @param string $url the URL
+ * @param bool $gzip use Gzip compression
+ *
+ * @return array an associative array with keys "http_body" and "http_code"
+ */
+function get_url($url, $gzip = false)
+{
+    $ch = curl_init($url);
+    curl_setopt($ch, CURLOPT_USERAGENT, 'Feedeliser/' . FEEDELISER_VERSION . ' (+https://github.com/majetzx/feedeliser)');
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    if ($gzip)
+    {
+        curl_setopt($ch, CURLOPT_ENCODING, 'gzip');
+    }
+    curl_setopt($ch, CURLOPT_HTTPHEADER, array(
+        'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language: en-US,en;q=0.5',
+        'Cache-Control: no-cache',
+    ));
+    $http_body = curl_exec($ch);
+    $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    
+    return [
+        'http_body' => $http_body,
+        'http_code' => $http_code,
+    ];
+}
+
+/**
+ * Get the content from a URL or from cache if available
  *
  * @param string $feed_name the feed's name
  * @param string $url the URL
  * @param callable $after_first_url a callback to get a content on several pages
  * @param callable $custom_html_cleaner a callback to clean the web page content, called as is by web_parser()
  * @param string $original_title original page title
+ * @param bool $gzip use Gzip compression
  *
  * @return array a array with keys status, title and content ; status can be "cache" ou "new"
  * @see web_parser()
  */
-function get_url_content($feed_name, $url, $after_first_url = null, $custom_html_cleaner = null, $original_title = null)
+function get_url_content($feed_name, $url, $after_first_url = null, $custom_html_cleaner = null, $original_title = null, $gzip = false)
 {
     // The SQLite database containing web pages cache
     global $feeds_cache;
@@ -45,7 +78,7 @@ function get_url_content($feed_name, $url, $after_first_url = null, $custom_html
     // No result: get values and store them if successful
     else
     {
-        $json = web_parser($url, $custom_html_cleaner, $original_title);
+        $json = web_parser($url, $custom_html_cleaner, $original_title, $gzip);
         log_data("web_parser() return : title = $json->title");
         $status = 'new';
         $title = $json->title ?: '';
@@ -59,7 +92,7 @@ function get_url_content($feed_name, $url, $after_first_url = null, $custom_html
             {
                 foreach ($urls as $supp_url)
                 {
-                    $json = web_parser($supp_url, $custom_html_cleaner);
+                    $json = web_parser($supp_url, $custom_html_cleaner, null, $gzip);
                     if ($json !== false)
                     {
                         $content .= $json->content;
@@ -95,27 +128,20 @@ function get_url_content($feed_name, $url, $after_first_url = null, $custom_html
  * @param string $url the web page URL
  * @param callable $custom_html_cleaner a callback to clean the web page content
  * @param string $original_title original page title
+ * @param bool $gzip use Gzip compression
  *
  * @return object an object with keys title, content
  */
-function web_parser($url, $custom_html_cleaner = null, $original_title = null)
+function web_parser($url, $custom_html_cleaner = null, $original_title = null, $gzip = false)
 {
     // Delete the query string from URL
     $url_parts = parse_url($url);
     $url = $url_parts['scheme'] . '://' . $url_parts['host'] . $url_parts['path'];
     
     // Get the whole web page content
-    $ch = curl_init($url);
-    curl_setopt($ch, CURLOPT_USERAGENT, "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.14; rv:67.0) Gecko/20100101 Firefox/67.0");
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_HTTPHEADER, array(
-        'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-        'Accept-Language: en-US,en;q=0.5',
-        'Cache-Control: no-cache',
-    ));
-    $full_html = curl_exec($ch);
-    $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
+    $url_data = get_url($url, $gzip);
+    $full_html = $url_data['http_body'];
+    $http_code = $url_data['http_code'];
     
     $json = new StdClass;
     if ($http_code == 200 && $full_html !== false)
