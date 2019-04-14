@@ -1,7 +1,7 @@
 <?php
 // Feedeliser - Functions
 
-use Readability\Readability;
+//use Readability\Readability;
 
 use andreskrey\Readability\Readability;
 use andreskrey\Readability\Configuration;
