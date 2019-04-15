@@ -287,3 +287,15 @@ function log_data($data)
 {
     file_put_contents('datas/log', date('[c] ') . (string) $data . PHP_EOL, FILE_APPEND);
 }
+
+/**
+ * Removes whitespace characters
+ *
+ * @param string $string the string to clean
+ *
+ * @return string the cleaned string
+ */
+function remove_ws($string)
+{
+    return preg_replace('/\s+/', ' ', $string);
+}

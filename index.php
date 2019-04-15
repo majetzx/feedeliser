@@ -40,7 +40,6 @@ if ($http_code != 200)
 $feeds_cache = new SQLite3(SQLITE_CACHE_DB_PATH, SQLITE3_OPEN_READWRITE);
 
 // Analyze the HTML/XML using DOM and XPath, create returned XML
-header('Content-Type: application/xml');
 libxml_use_internal_errors(true);
 $doc = new DOMDocument();
 
@@ -128,4 +127,5 @@ if (isset($feed_config['finalize']) && is_callable($feed_config['finalize']))
     $output_data = $feed_config['finalize']($output_data);
 }
 
+header('Content-Type: application/xml');
 echo $output_data;
