@@ -299,3 +299,20 @@ function remove_ws($string)
 {
     return preg_replace('/\s+/', ' ', $string);
 }
+
+/**
+ * Replace a text node with a CDATA node
+ *
+ * @param DOMDocument $doc the DOM document
+ * @param DOMNode $block the DOM node representing the block
+ * @param DOMXPath $xpath the XPath object
+ * @param string $node_path the path to the content node
+ * @param string $content the content to replace the original content
+ */
+function replace_content_cdata($doc, $block, $xpath, $node_path, $content)
+{
+    $description = $xpath->query($node_path, $block)->item(0);
+    dom_delete_children($description->childNodes);
+    $cdata = $doc->createCDATASection($content);
+    $description->appendChild($cdata);
+}
