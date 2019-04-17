@@ -1,8 +1,6 @@
 <?php
 // Feedeliser - Functions
 
-//use Readability\Readability;
-
 use andreskrey\Readability\Readability;
 use andreskrey\Readability\Configuration;
 use andreskrey\Readability\ParseException;
@@ -151,19 +149,6 @@ function web_parser($url, $custom_html_cleaner = null, $original_title = null, $
     $json = new StdClass;
     if ($http_code == 200 && $full_html !== false)
     {
-        /*$readability = new Readability($full_html, $url);
-        if ($readability->init())
-        {
-            $json->title = $readability->getTitle()->textContent;
-            $json->content = $readability->getContent()->textContent;
-        }
-        else
-        {
-            log_data("web_parser($url) : Readability error");
-            $json->title = "⚠️ $original_title";
-            $json->content = $full_html;
-        }*/
-        
         $readability = new Readability(new Configuration());
         try
         {
