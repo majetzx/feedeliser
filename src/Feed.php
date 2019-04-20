@@ -337,21 +337,27 @@ class Feed
                 // Get the item content, from cache if available
                 $item_content = $this->feedeliser->getItemContent($this, $link);
 
-                // Replace title and content, with CDATA sections
-                Feedeliser::replaceContentCdata(
-                    $doc,
-                    $item,
-                    $item_xpath,
-                    $this->item_title_xpath,
-                    $item_content['title']
-                );
-                Feedeliser::replaceContentCdata(
-                    $doc,
-                    $item,
-                    $item_xpath,
-                    $this->item_content_xpath,
-                    $item_content['content']
-                );
+                // Replace title and content, with CDATA sections, only if not empty
+                if ($item_content['title'])
+                {
+                    Feedeliser::replaceContentCdata(
+                        $doc,
+                        $item,
+                        $item_xpath,
+                        $this->item_title_xpath,
+                        $item_content['title']
+                    );
+                }
+                if ($item_content['content'])
+                {
+                    Feedeliser::replaceContentCdata(
+                        $doc,
+                        $item,
+                        $item_xpath,
+                        $this->item_content_xpath,
+                        $item_content['content']
+                    );
+                }
             }
 
             $output_data = $doc->saveXML();
