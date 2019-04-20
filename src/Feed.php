@@ -390,7 +390,7 @@ class Feed
             $output_data = call_user_func($this->finalize, $output_data);
         }
 
-        header('Content-Type: application/xml');
+        header('Content-Type: application/xml' . ($doc->encoding ? '; charset=' . $doc->encoding : ''));
         echo $output_data;
 
         return true;
