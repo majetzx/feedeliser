@@ -299,7 +299,12 @@ class Feed
 
             // Get all items, if any, call the callback on each one
             $items = $doc_xpath->query($this->items_xpath);
-            if (!$items)
+            if ($items === false)
+            {
+                $this->logger->warning("Feed \"$this->name\": invalid \"items_xpath\" parameter");
+                return false;
+            }
+            if (!$items->length)
             {
                 $this->logger->warning("Feed \"$this->name\": no item found");
                 return false;
@@ -313,10 +318,21 @@ class Feed
                 Feedeliser::registerXpathNamespaces($item_xpath, $this->xml_namespaces);
 
                 // Item link: we just need the value, not the XML node
-                $link = $item_xpath->query($this->item_link_xpath, $item)->item(0)->nodeValue;
-                if (!$link)
+                $link_node = $item_xpath->query($this->item_link_xpath, $item)->item(0);
+                if (!$link_node)
                 {
                     $this->logger->warning("Feed \"$this->name\": no link found for item #$item_num");
+                    continue;
+                }
+                // Try the node value or an href attribute
+                $link = $link_node->nodeValue;
+                if (!$link && $link_node->hasAttribute('href'))
+                {
+                    $link = $link_node->getAttribute('href');
+                }
+                if (!$link)
+                {
+                    $this->logger->warning("Feed \"$this->name\": empty link for item #$item_num");
                     continue;
                 }
 
