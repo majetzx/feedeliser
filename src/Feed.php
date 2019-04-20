@@ -80,6 +80,12 @@ class Feed
     protected $item_callback;
     
     /**
+     * Use Readability to clean items content
+     * @var bool
+     */
+    protected $readability = true;
+
+    /**
      * Time to keep an item in cache
      * @var int
      */
@@ -194,6 +200,12 @@ class Feed
             $this->item_callback = $config['item_callback'];
         }
 
+        // Argument: readability
+        if (isset($config['readability']))
+        {
+            $this->readability = (bool) $config['readability'];
+        }
+        
         // Argument: cache_limit
         if (isset($config['cache_limit']))
         {
@@ -245,6 +257,16 @@ class Feed
     public function getItemCallback()
     {
         return $this->item_callback;
+    }
+
+    /**
+     * Get the readability setting
+     * 
+     * @return bool
+     */
+    public function getReadability()
+    {
+        return $this->readability;
     }
 
     /**

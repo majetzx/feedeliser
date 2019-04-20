@@ -179,38 +179,51 @@ class Feedeliser
             $url_content = $this->getUrlContent($url);
             if ($url_content['http_code'] == 200)
             {
+                $status = 'new';
+
                 // Clean the content with Readability
-                $readability = new Readability(new Configuration());
-                try
+                if ($feed->getReadability())
                 {
-                    $readability->parse($url_content['http_body']);
-                    $status = 'new';
-                    $title = $readability->getTitle();
-                    $content = $readability->getContent();
-
-                    // Do some standard cleaning on the content
-                    $content = str_replace(['&#xD;', '&#xA;'], ' ', $content);
-
-                    // A callback on the content
-                    $item_callback = $feed->getItemCallback();
-                    if ($item_callback)
+                    $readability = new Readability(new Configuration());
+                    try
                     {
-                        call_user_func_array($item_callback, [&$title, &$content]);
+                        $readability->parse($url_content['http_body']);
+                        $title = $readability->getTitle();
+                        $content = $readability->getContent();
                     }
-
-                    $content = static::removeWhitespaces($content);
+                    catch (ParseException $e)
+                    {
+                        $this->logger->warning(
+                            "Feed \"{$feed->getName()}\": Readability exception while parsing content from URL $url",
+                            [
+                                'exception' => $e,
+                            ]
+                        );
+                        $status = 'error';
+                    }
                 }
-                catch (ParseException $e)
+
+                // Do some standard cleaning on the content
+                $content = str_replace(['&#xD;', '&#xA;'], ' ', $content);
+
+                // A callback on the content
+                $item_callback = $feed->getItemCallback();
+                if ($item_callback)
+                {
+                    call_user_func_array($item_callback, [&$title, &$content, $url_content['http_body']]);
+                }
+
+                $content = static::removeWhitespaces($content);
+
+                // If title and content are empty, it's a problem
+                if (!$title && !$content)
                 {
                     $this->logger->warning(
-                        "Feed \"{$feed->getName()}\": Readability exception while parsing content from URL $url",
-                        [
-                            'exception' => $e,
-                        ]
+                        "Feed \"{$feed->getName()}\": empty title and content for URL $url"
                     );
                     $status = 'error';
                 }
-
+                
                 // Store clean content in cache if available
                 if ($status == 'new' && $cache_available)
                 {
