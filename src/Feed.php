@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace majetzx\feedeliser;
 
 use Psr\Log\LoggerInterface;
+use DOMDocument, DOMXpath;
 
 /**
  * Feed class
@@ -23,11 +24,11 @@ class Feed
     const SOURCE_PAGE = 'page';
     
     /**
-     * Default time to keep an item in cache
-     * @var int
+     * Feedeliser object
+     * @var \majetzx\feedeliser\Feedeliser
      */
-    public static $default_cache_limit = 7 * 24 * 60 * 60; // one week
-    
+    protected $feedeliser;
+
     /**
      * Feed name
      * @var string
@@ -35,12 +36,12 @@ class Feed
     protected $name;
 
     /**
-     * Feed source type
+     * Feed source type, default is feed
      * @var string
      * @see self::SOURCE_FEED
      * @see self::SOURCE_PAGE
      */
-    protected $source_type;
+    protected $source_type = self::SOURCE_FEED;
     
     /**
      * Feed URL
@@ -52,8 +53,26 @@ class Feed
      * XPath path to get items in the feed or the web page
      * @var string
      */
-    protected $items_xpath;
+    protected $items_xpath = '//item';
     
+    /**
+     * XPath path to get item link
+     * @var string
+     */
+    protected $item_link_xpath = './link';
+
+    /**
+     * XPath path to get item title
+     * @var string
+     */
+    protected $item_title_xpath = './title';
+
+    /**
+     * XPath path to get item content
+     * @var string
+     */
+    protected $item_content_xpath = './description';
+
     /**
      * Callback to transform an item
      * @var callable
@@ -61,17 +80,22 @@ class Feed
     protected $item_callback;
     
     /**
-     * Time to keep an item in cache, defaults to self::$default_cache_limit if missing
+     * Time to keep an item in cache
      * @var int
-     * @see self::$default_cache_limit
      */
-    protected $cache_limit;
+    protected $cache_limit = 7 * 24 * 60 * 60; // one week
     
     /**
      * Additional namespaces, in case of a feed source
      * @var string[]
      */
     protected $xml_namespaces = array();
+
+    /**
+     * A callback called to finalize the data
+     * @var callable
+     */
+    protected $finalize;
 
     /**
      * Logger
@@ -82,75 +106,102 @@ class Feed
     /**
      * Constructor
      * 
+     * @param \majetzx\feedeliser\Feedeliser $feedeliser
      * @param string $name feed name
      * @param array $config feed configuration
      * @param \Psr\Log\LoggerInterface $logger
      */
-    public function __construct(string $name, array $config, LoggerInterface $logger)
+    public function __construct(Feedeliser $feedeliser, string $name, array $config, LoggerInterface $logger)
     {
+        // Argument: feedeliser
+        $this->feedeliser = $feedeliser;
+
         // Argument: name
         $this->name = $name;
 
         // Argument: source_type
-        if (!isset($config['source_type']))
+        if (isset($config['source_type']))
         {
-            throw new \InvalidArgumentException("Missing argument source_type");
+            if ($config['source_type'] !== self::SOURCE_FEED && $config['source_type'] !== self::SOURCE_PAGE)
+            {
+                throw new \InvalidArgumentException("Feed \"$this->name\": invalid argument source_type");
+            }
+            $this->source_type = $config['source_type'];
         }
-        if ($config['source_type'] !== self::SOURCE_FEED && $config['source_type'] !== self::SOURCE_PAGE)
-        {
-            throw new \InvalidArgumentException("Invalid argument source_type");
-        }
-        $this->source_type = $config['source_type'];
         
         // Argument: url
         if (!isset($config['url']))
         {
-            throw new \InvalidArgumentException("Missing argument url");
+            throw new \InvalidArgumentException("Feed \"$this->name\": missing argument url");
         }
         if (!is_string($config['url']))
         {
-            throw new \InvalidArgumentException("Invalid argument type url");
+            throw new \InvalidArgumentException("Feed \"$this->name\": invalid argument type url");
         }
         if (filter_var($config['url'], FILTER_VALIDATE_URL) === false)
         {
-            throw new \InvalidArgumentException("Invalid argument url");
+            throw new \InvalidArgumentException("Feed \"$this->name\": invalid argument url");
         }
         $this->url = $config['url'];
 
         // Argument: items_xpath
-        if (!isset($config['items_xpath']))
+        if (isset($config['items_xpath']))
         {
-            throw new \InvalidArgumentException("Missing argument items_xpath");
+            if (!is_string($config['items_xpath']))
+            {
+                throw new \InvalidArgumentException("Feed \"$this->name\": invalid argument type items_xpath");
+            }
+            $this->items_xpath = $config['items_xpath'];
         }
-        if (!is_string($config['items_xpath']))
+
+        // Argument: item_link_xpath
+        if (isset($config['item_link_xpath']))
         {
-            throw new \InvalidArgumentException("Invalid argument type items_xpath");
+            if (!is_string($config['item_link_xpath']))
+            {
+                throw new \InvalidArgumentException("Feed \"$this->name\": invalid argument type item_link_xpath");
+            }
+            $this->item_link_xpath = $config['item_link_xpath'];
         }
-        $this->items_xpath = $config['items_xpath'];
+
+        // Argument: item_title_xpath
+        if (isset($config['item_title_xpath']))
+        {
+            if (!is_string($config['item_title_xpath']))
+            {
+                throw new \InvalidArgumentException("Feed \"$this->name\": invalid argument type item_title_xpath");
+            }
+            $this->item_title_xpath = $config['item_title_xpath'];
+        }
+
+        // Argument: item_content_xpath
+        if (isset($config['item_content_xpath']))
+        {
+            if (!is_string($config['item_content_xpath']))
+            {
+                throw new \InvalidArgumentException("Feed \"$this->name\": invalid argument type item_content_xpath");
+            }
+            $this->item_content_xpath = $config['item_content_xpath'];
+        }
 
         // Argument: item_callback
-        if (!isset($config['item_callback']))
+        if (isset($config['item_callback']))
         {
-            throw new \InvalidArgumentException("Missing argument item_callback");
+            if (!is_callable($config['item_callback']))
+            {
+                throw new \InvalidArgumentException("Feed \"$this->name\": invalid argument type item_callback");
+            }
+            $this->item_callback = $config['item_callback'];
         }
-        if (!is_callable($config['item_callback']))
-        {
-            throw new \InvalidArgumentException("Invalid argument type item_callback");
-        }
-        $this->item_callback = $config['item_callback'];
 
         // Argument: cache_limit
         if (isset($config['cache_limit']))
         {
             if (!is_int($config['cache_limit']))
             {
-                throw new \InvalidArgumentException("Invalid argument type cache_limit");
+                throw new \InvalidArgumentException("Feed \"$this->name\": invalid argument type cache_limit");
             }
             $this->cache_limit = (int) $config['cache_limit'];
-        }
-        else
-        {
-            $this->cache_limit = static::$default_cache_limit;
         }
 
         // Argument: xml_namespaces
@@ -158,12 +209,42 @@ class Feed
         {
             if (!is_array($config['xml_namespaces']))
             {
-                throw new \InvalidArgumentException("Invalid argument type xml_namespaces");
+                throw new \InvalidArgumentException("Feed \"$this->name\": invalid argument type xml_namespaces");
             }
             $this->xml_namespaces = $config['xml_namespaces'];
         }
 
+        // Argument: finalize
+        if (isset($config['finalize']))
+        {
+            if (!is_callable($config['finalize']))
+            {
+                throw new \InvalidArgumentException("Feed \"$this->name\": invalid argument type finalize");
+            }
+            $this->finalize = $config['finalize'];
+        }
+
         $this->logger = $logger;
+    }
+
+    /**
+     * Get the feed name
+     * 
+     * @return string
+     */
+    public function getName()
+    {
+        return $this->name;
+    }
+
+    /**
+     * Get the item callback
+     * 
+     * @return callable
+     */
+    public function getItemCallback()
+    {
+        return $this->item_callback;
     }
 
     /**
@@ -171,15 +252,103 @@ class Feed
      * 
      * @return mixed false in case of error
      */
-    public function generate()
+    public function generate(): bool
     {
-        $url_content = Feedeliser::getUrlContent($this->url);
+        $url_content = $this->feedeliser->getUrlContent($this->url);
 
         // We need a 200 response
         if ($url_content['http_code'] != 200)
         {
-            $this->logger->warning("feed \"$this->name\": HTTP code = {$url_content['http_code']}");
+            $this->logger->warning("Feed \"$this->name\": invalid HTTP code {$url_content['http_code']}");
             return false;
         }
+
+        // Disable standard XML errors
+        libxml_use_internal_errors(true);
+        $doc = new DOMDocument();
+
+        // An RSS feed
+        if ($this->source_type == self::SOURCE_FEED)
+        {
+            $doc->loadXML($url_content['http_body']);
+            $doc_xpath = new DOMXpath($doc);
+
+            Feedeliser::registerXpathNamespaces($doc_xpath, $this->xml_namespaces);
+
+            // Get all items, if any, call the callback on each one
+            $items = $doc_xpath->query($this->items_xpath);
+            if (!$items)
+            {
+                $this->logger->warning("Feed \"$this->name\": no item found");
+                return false;
+            }
+
+            $item_num = 0;
+            foreach ($items as $item)
+            {
+                $item_num++;
+                $item_xpath = new DOMXpath($doc);
+                Feedeliser::registerXpathNamespaces($item_xpath, $this->xml_namespaces);
+
+                // Item link: we just need the value, not the XML node
+                $link = $item_xpath->query($this->item_link_xpath, $item)->item(0)->nodeValue;
+                if (!$link)
+                {
+                    $this->logger->warning("Feed \"$this->name\": no link found for item #$item_num");
+                    continue;
+                }
+
+                // Item title: we need the XML node to replace its content in some cases
+                $title_node = $item_xpath->query($this->item_title_xpath, $item)->item(0);
+                if (!$title_node)
+                {
+                    $this->logger->warning("Feed \"$this->name\": no title found for item #$item_num ($link)");
+                }
+
+                // Item content: we need the XML node to replace its content
+                $content_node = $item_xpath->query($this->item_content_xpath, $item)->item(0);
+                if (!$content_node)
+                {
+                    $this->logger->warning("Feed \"$this->name\": no content found for item #$item_num ($link)");
+                }
+
+                // Get the item content, from cache if available
+                $item_content = $this->feedeliser->getItemContent($this, $link);
+
+                // Replace title and content, with CDATA sections
+                Feedeliser::replaceContentCdata(
+                    $doc,
+                    $item,
+                    $item_xpath,
+                    $this->item_title_xpath,
+                    $item_content['title']
+                );
+                Feedeliser::replaceContentCdata(
+                    $doc,
+                    $item,
+                    $item_xpath,
+                    $this->item_content_xpath,
+                    $item_content['content']
+                );
+            }
+
+            $output_data = $doc->saveXML();
+        }
+        // A web page
+        else if ($this->source_type == self::SOURCE_PAGE)
+        {
+            //TODO
+        }
+
+        // Optional finalizer
+        if ($this->finalize)
+        {
+            $output_data = call_user_func($this->finalize, $output_data);
+        }
+
+        header('Content-Type: application/xml');
+        echo $output_data;
+
+        return true;
     }
 }
