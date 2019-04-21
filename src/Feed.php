@@ -80,7 +80,7 @@ class Feed
     protected $item_title_xpath = './title';
 
     /**
-     * XPath path to get item content, useless for source_type=SOURCE_PAGE
+     * XPath path to get item content, optional for source_type=SOURCE_PAGE
      * @var string
      */
     protected $item_content_xpath = './description';
@@ -228,6 +228,16 @@ class Feed
                 throw new \InvalidArgumentException("Feed \"$this->name\": invalid argument type item_content_xpath");
             }
             $this->item_content_xpath = $config['item_content_xpath'];
+        }
+
+        // Argument: item_time_xpath, SOURCE_PAGE only
+        if ($this->source_type == static::SOURCE_PAGE && isset($config['item_time_xpath']))
+        {
+            if (!is_string($config['item_time_xpath']))
+            {
+                throw new \InvalidArgumentException("Feed \"$this->name\": invalid argument type item_time_xpath");
+            }
+            $this->item_time_xpath = $config['item_time_xpath'];
         }
 
         // Argument: item_callback
@@ -464,6 +474,7 @@ class Feed
             foreach ($items as $item)
             {
                 $item_num++;
+                $item_xpath = new DOMXpath($doc);
                 //
             }
         }
