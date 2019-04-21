@@ -240,10 +240,17 @@ class Feedeliser
                     $content = $original_content;
                 }
 
-                // Do some standard cleaning on the content
-                list($title, $content) = str_replace(['&#xD;', '&#xA;'], ' ', [$title, $content]);
-                $title = preg_replace('/\s\s+/', ' ', $title);
-                $content = preg_replace('/\s\s+/', ' ', $content);
+                // Do some standard cleaning on the title and content
+                list($title, $content) = str_replace(
+                    ['&#xD;', '&#xA;', "\xC2\x92", ],
+                    [' ',     ' ',     '’',        ],
+                    [$title, $content]
+                );
+                list($title, $content) = preg_replace(
+                    '/\s\s+/',
+                    ' ',
+                    [$title, $content]
+                );
 
                 // If title and content are empty, it's a problem
                 if (!$title && !$content)
