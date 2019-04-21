@@ -242,8 +242,8 @@ class Feedeliser
 
                 // Do some standard cleaning on the content
                 list($title, $content) = str_replace(['&#xD;', '&#xA;'], ' ', [$title, $content]);
-                $title = static::removeWhitespaces($title);
-                $content = static::removeWhitespaces($content);
+                $title = preg_replace('/\s\s+/', ' ', $title);
+                $content = preg_replace('/\s\s+/', ' ', $content);
 
                 // If title and content are empty, it's a problem
                 if (!$title && !$content)
@@ -343,14 +343,19 @@ class Feedeliser
     }
 
     /**
-     * Remove whitespace characters
-     *
-     * @param string $string the string to clean
-     *
-     * @return string the cleaned string
+     * Detect a paywall and update title if found
+     * 
+     * A paywall is detected by searching a small string (needle) into a content (haystack)
+     * 
+     * @param string $title the title to update
+     * @param string $haystack the content into which the needle is searched
+     * @param string $needle the needle searched in the haystack
      */
-    function removeWhitespaces($string)
+    public static function detectPaywall(string &$title, string $haystack, string $needle)
     {
-        return preg_replace('/\s\s+/', ' ', $string);
+        if (strpos($haystack, $needle) !== false)
+        {
+            $title = "🔒 $title";
+        }
     }
 }
