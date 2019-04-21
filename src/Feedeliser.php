@@ -31,6 +31,11 @@ class Feedeliser
     public static $sqlite_cache_db_path = 'datas/feeds.sqlite';
 
     /**
+     * @var string
+     */
+    public static $curl_cookie_jar = 'datas/curl_cookies';
+
+    /**
      * Logger
      * @var \Psr\Log\LoggerInterface
      */
@@ -91,14 +96,19 @@ class Feedeliser
     public function getUrlContent(string $url): array
     {
         $ch = curl_init($url);
-        curl_setopt($ch, CURLOPT_USERAGENT, 'Feedeliser/' . static::FEEDELISER_VERSION . ' (+https://github.com/majetzx/feedeliser)');
+        // Feedeliser identifies itself as a real browser to bypass bot protections
+        curl_setopt($ch, CURLOPT_USERAGENT, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/73.0.3683.86 Safari/537.36');
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_ENCODING, ''); // empty string to accept all encodings
         curl_setopt($ch, CURLOPT_HTTPHEADER, array(
-            'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-            'Accept-Language: en-US,en;q=0.5',
-            'Cache-Control: no-cache',
+            'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3',
+            'Accept-Language: en-GB,en-US;q=0.9,en;q=0.8',
+            'Cache-Control: max-age=0',
+            'Upgrade-Insecure-Requests: 1',
+            'Connection: keep-alive',
         ));
+        // Storing cookies set by websites decreases the probability of being blocked
+        curl_setopt($ch, CURLOPT_COOKIEJAR, static::$curl_cookie_jar);
         curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
         $http_body = curl_exec($ch);
         $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
@@ -267,6 +277,16 @@ class Feedeliser
                     "invalid HTTP code {$url_content['http_code']}"
                 );
                 $status = 'error';
+                if ($url_content['http_code'] == 403)
+                {
+                    $title = '⛔️ ' . $original_title;
+                    $this->logger->error($url_content['http_body']);
+                }
+                else
+                {
+                    $title = '⚠️ ' . $original_title;
+                }
+                $content = $original_content;
             }
         }
 
