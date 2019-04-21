@@ -204,7 +204,6 @@ class Feedeliser
                 $encoding = mb_detect_encoding($url_content['http_body']);
                 if ($encoding !== false && $encoding != Feed::TARGET_ENCODING)
                 {
-                    $this->logger->info("change encoding $encoding -> TARGET_ENCODING for $url");
                     $url_content['http_body'] = iconv($encoding, Feed::TARGET_ENCODING, $url_content['http_body']);
                 }
 

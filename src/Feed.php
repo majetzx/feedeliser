@@ -293,13 +293,13 @@ class Feed
 
         // Change encoding if it's not in the target encoding
         $matches = [];
-        if (preg_match('/^<\?xml\s+.*encoding="(.*)".*\?>$/m', $url_content['http_body'], $matches))
+        if (preg_match('/^<\?xml\s+.*encoding="([a-z0-9-]+)".*\?>$/im', $url_content['http_body'], $matches))
         {
             $encoding = $matches[1];
             if (strtoupper($encoding) != strtoupper(static::TARGET_ENCODING))
             {
                 $url_content['http_body'] = preg_replace(
-                    '/^(<\?xml\s+.*encoding=")(.*)(".*\?>)$/m',
+                    '/^(<\?xml\s+.*encoding=")([a-z0-9-]+)(".*\?>)$/m',
                     '${1}' . static::TARGET_ENCODING . '${3}',
                     $url_content['http_body']
                 );
