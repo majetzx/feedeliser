@@ -50,7 +50,7 @@ class Feed
     protected $source_type = self::SOURCE_FEED;
     
     /**
-     * Feed title, only for source_type=SOURCE_PAGE
+     * Feed title, only (and required) for source_type=SOURCE_PAGE
      * @var string
      */
     protected $title;
@@ -62,28 +62,34 @@ class Feed
     protected $url;
     
     /**
-     * XPath path to get items in the feed or the web page
+     * XPath path to get items in the feed or the web page, required for source_type=SOURCE_PAGE
      * @var string
      */
     protected $items_xpath = '//item';
     
     /**
-     * XPath path to get item link
+     * XPath path to get item link, required for source_type=SOURCE_PAGE
      * @var string
      */
     protected $item_link_xpath = './link';
 
     /**
-     * XPath path to get item title
+     * XPath path to get item title, optional for source_type=SOURCE_PAGE
      * @var string
      */
     protected $item_title_xpath = './title';
 
     /**
-     * XPath path to get item content
+     * XPath path to get item content, useless for source_type=SOURCE_PAGE
      * @var string
      */
     protected $item_content_xpath = './description';
+
+    /**
+     * XPath path to get item date-time, only for source_type=SOURCE_PAGE, optional
+     * @var string
+     */
+    protected $item_time_xpath;
 
     /**
      * Callback to transform an item
@@ -198,6 +204,10 @@ class Feed
                 throw new \InvalidArgumentException("Feed \"$this->name\": invalid argument type item_link_xpath");
             }
             $this->item_link_xpath = $config['item_link_xpath'];
+        }
+        else if ($this->source_type == static::SOURCE_PAGE)
+        {
+            throw new \InvalidArgumentException("Feed \"$this->name\": missing argument item_link_xpath for source_type=SOURCE_PAGE");
         }
 
         // Argument: item_title_xpath
@@ -336,28 +346,42 @@ class Feed
         libxml_use_internal_errors(true);
         $doc = new DOMDocument();
 
-        // An RSS feed
+        // Load content according to source type
         if ($this->source_type == self::SOURCE_FEED)
         {
             $doc->loadXML($url_content['http_body']);
-            $doc_xpath = new DOMXpath($doc);
+        }
+        else if ($this->source_type == self::SOURCE_PAGE)
+        {
+            $doc->loadHTML($url_content['http_body']);
+        }
 
+        $doc_xpath = new DOMXpath($doc);
+
+        // Register additional XML namespaces for XPath queries
+        if ($this->source_type == self::SOURCE_FEED)
+        {
             Feedeliser::registerXpathNamespaces($doc_xpath, $this->xml_namespaces);
+        }
 
-            // Get all items, if any, call the callback on each one
-            $items = $doc_xpath->query($this->items_xpath);
-            if ($items === false)
-            {
-                $this->logger->warning("Feed \"$this->name\": invalid \"items_xpath\" parameter");
-                return false;
-            }
-            if (!$items->length)
-            {
-                $this->logger->warning("Feed \"$this->name\": no item found");
-                return false;
-            }
+        // Get all items, if any, call the callback on each one
+        $items = $doc_xpath->query($this->items_xpath);
+        if ($items === false)
+        {
+            $this->logger->warning("Feed \"$this->name\": invalid \"items_xpath\" parameter");
+            return false;
+        }
+        if (!$items->length)
+        {
+            $this->logger->warning("Feed \"$this->name\": no item found");
+            return false;
+        }
 
-            $item_num = 0;
+        $item_num = 0;
+
+        // An RSS feed
+        if ($this->source_type == self::SOURCE_FEED)
+        {
             foreach ($items as $item)
             {
                 $item_num++;
@@ -437,7 +461,11 @@ class Feed
         // A web page
         else if ($this->source_type == self::SOURCE_PAGE)
         {
-            //TODO
+            foreach ($items as $item)
+            {
+                $item_num++;
+                //
+            }
         }
 
         // Optional finalizer
