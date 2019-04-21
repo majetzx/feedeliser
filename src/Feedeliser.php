@@ -19,6 +19,12 @@ class Feedeliser
     const FEEDELISER_VERSION = '1';
 
     /**
+     * XML UTF-8 prologue
+     * @var string
+     */
+    const XML_PROLOGUE = '<?xml version="1.0" encoding="utf-8"?>';
+
+    /**
      * Feeds configurations directory
      * @var string
      */
@@ -31,6 +37,7 @@ class Feedeliser
     public static $sqlite_cache_db_path = 'datas/feeds.sqlite';
 
     /**
+     * Text file used by cURL to store cookies
      * @var string
      */
     public static $curl_cookie_jar = 'datas/curl_cookies';
@@ -364,5 +371,29 @@ class Feedeliser
         {
             $title = "🔒 $title";
         }
+    }
+
+    /**
+     * Create a DOMXPath object from an HTML content
+     * 
+     * @param string $content the HTML content objects are created from
+     * @param bool $withXmlPrologue include XML prologue at the beginning of the content
+     * @param bool $withLibxmlHtmlOptions load HTML content with Libxml HTML optionns
+     * 
+     * @return array an array with DOMDocument and DOMXPath objects
+     */
+    public static function createXPathObject(
+        string $content,
+        bool $withXmlPrologue = true,
+        bool $withLibxmlHtmlOptions = true
+    ): array
+    {
+        $document = new DOMDocument();
+        $document->loadHTML(
+            ($withXmlPrologue ? static::XML_PROLOGUE : '') . $content,
+            $withLibxmlHtmlOptions ? LIBXML_HTML_NOIMPLIED|LIBXML_HTML_NODEFDTD : 0
+        );
+        $xpath = new DOMXpath($document);
+        return [$document, $xpath];
     }
 }
