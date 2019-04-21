@@ -74,6 +74,12 @@ class Feed
     protected $item_link_xpath = './link';
 
     /**
+     * Prefix added to URLs found by $item_link_xpath property, only for source_type=SOURCE_PAGE
+     * @var string
+     */
+    protected $item_link_prefix;
+
+    /**
      * XPath path to get item title, optional for source_type=SOURCE_PAGE
      * @var string
      */
@@ -208,6 +214,16 @@ class Feed
         else if ($this->source_type == static::SOURCE_PAGE)
         {
             throw new \InvalidArgumentException("Feed \"$this->name\": missing argument item_link_xpath for source_type=SOURCE_PAGE");
+        }
+
+        // Argument: item_link_prefix
+        if ($this->source_type == static::SOURCE_PAGE && isset($config['item_link_prefix']))
+        {
+            if (!is_string($config['item_link_prefix']))
+            {
+                throw new \InvalidArgumentException("Feed \"$this->name\": invalid argument type item_link_prefix");
+            }
+            $this->item_link_prefix = $config['item_link_prefix'];
         }
 
         // Argument: item_title_xpath
@@ -475,7 +491,35 @@ class Feed
             {
                 $item_num++;
                 $item_xpath = new DOMXpath($doc);
-                //
+                $original_title = $original_time = $original_content = '';
+                
+                // Item link: we just need the value, not the XML node
+                $link_node = $item_xpath->query($this->item_link_xpath, $item)->item(0);
+                if (!$link_node)
+                {
+                    $this->logger->warning("Feed \"$this->name\": no link found for item #$item_num");
+                    continue;
+                }
+                // Try the node value or an href attribute, with optional prefix
+                $link = $link_node->nodeValue;
+                if ($link && $this->item_link_prefix)
+                {
+                    $link = $this->item_link_prefix . $link;
+                }
+                if ((!$link || !filter_var($link, FILTER_VALIDATE_URL)) && $link_node->hasAttribute('href'))
+                {
+                    $link = $link_node->getAttribute('href');
+                    if ($link && $this->item_link_prefix)
+                    {
+                        $link = $this->item_link_prefix . $link;
+                    }
+                }
+                if (!$link || !filter_var($link, FILTER_VALIDATE_URL))
+                {
+                    $this->logger->warning("Feed \"$this->name\": empty link for item #$item_num");
+                    continue;
+                }
+
             }
         }
 
@@ -485,8 +529,8 @@ class Feed
             $output_data = call_user_func($this->finalize, $output_data);
         }
 
-        header('Content-Type: application/xml; charset=' . static::TARGET_ENCODING);
-        echo $output_data;
+        //header('Content-Type: application/xml; charset=' . static::TARGET_ENCODING);
+        //echo $output_data;
 
         return true;
     }
