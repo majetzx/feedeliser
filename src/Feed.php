@@ -50,6 +50,12 @@ class Feed
     protected $source_type = self::SOURCE_FEED;
     
     /**
+     * Feed title, only for source_type=SOURCE_PAGE
+     * @var string
+     */
+    protected $title;
+
+    /**
      * Feed URL
      * @var string
      */
@@ -140,6 +146,20 @@ class Feed
             }
             $this->source_type = $config['source_type'];
         }
+
+        // Argument: title, SOURCE_PAGE only
+        if ($this->source_type == static::SOURCE_PAGE)
+        {
+            if (!isset($config['title']))
+            {
+                throw new \InvalidArgumentException("Feed \"$this->name\": missing argument title");
+            }
+            if (!is_string($config['title']))
+            {
+                throw new \InvalidArgumentException("Feed \"$this->name\": invalid argument type title");
+            }
+            $this->title = $config['title'];
+        }
         
         // Argument: url
         if (!isset($config['url']))
@@ -164,6 +184,10 @@ class Feed
                 throw new \InvalidArgumentException("Feed \"$this->name\": invalid argument type items_xpath");
             }
             $this->items_xpath = $config['items_xpath'];
+        }
+        else if ($this->source_type == static::SOURCE_PAGE)
+        {
+            throw new \InvalidArgumentException("Feed \"$this->name\": missing argument items_xpath for source_type=SOURCE_PAGE");
         }
 
         // Argument: item_link_xpath
