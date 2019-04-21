@@ -120,10 +120,12 @@ class Feedeliser
      * 
      * @param \majetzx\feedeliser\Feed $feed the Feed object
      * @param string $url the item URL
+     * @param string $original_title the original item title
+     * @param string $original_content the original item content
      * 
      * @return array an array with keys "status", "title", "content"
      */
-    public function getItemContent(Feed $feed, string $url): array
+    public function getItemContent(Feed $feed, string $url, string $original_title, string $original_content): array
     {
         $this->openCache();
         $status = $title = $content = '';
@@ -181,6 +183,14 @@ class Feedeliser
             {
                 $status = 'new';
 
+                // Change encoding if it's not in the target encoding
+                $encoding = mb_detect_encoding($url_content['http_body']);
+                if ($encoding !== false && $encoding != Feed::TARGET_ENCODING)
+                {
+                    $this->logger->info("change encoding $encoding -> TARGET_ENCODING for $url");
+                    $url_content['http_body'] = iconv($encoding, Feed::TARGET_ENCODING, $url_content['http_body']);
+                }
+
                 // Clean the content with Readability
                 if ($feed->getReadability())
                 {
@@ -203,9 +213,6 @@ class Feedeliser
                     }
                 }
 
-                // Do some standard cleaning on the content
-                $content = str_replace(['&#xD;', '&#xA;'], ' ', $content);
-
                 // A callback on the content
                 $item_callback = $feed->getItemCallback();
                 if ($item_callback)
@@ -213,6 +220,19 @@ class Feedeliser
                     call_user_func_array($item_callback, [&$title, &$content, $url_content['http_body']]);
                 }
 
+                // Reuse original values if new ones are empty
+                if (!$title)
+                {
+                    $title = $original_title;
+                }
+                if (!$content)
+                {
+                    $content = $original_content;
+                }
+
+                // Do some standard cleaning on the content
+                list($title, $content) = str_replace(['&#xD;', '&#xA;'], ' ', [$title, $content]);
+                $title = static::removeWhitespaces($title);
                 $content = static::removeWhitespaces($content);
 
                 // If title and content are empty, it's a problem

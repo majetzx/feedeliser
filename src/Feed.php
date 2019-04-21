@@ -12,6 +12,12 @@ use DOMDocument, DOMXpath;
 class Feed
 {
     /**
+     * The target encoding
+     * @var string
+     */
+    const TARGET_ENCODING = 'UTF-8';
+
+    /**
      * Source type: a feed
      * @var string
      */
@@ -285,6 +291,23 @@ class Feed
             return false;
         }
 
+        // Change encoding if it's not in the target encoding
+        $matches = [];
+        if (preg_match('/^<\?xml\s+.*encoding="(.*)".*\?>$/m', $url_content['http_body'], $matches))
+        {
+            $encoding = $matches[1];
+            if (strtoupper($encoding) != strtoupper(static::TARGET_ENCODING))
+            {
+                $url_content['http_body'] = preg_replace(
+                    '/^(<\?xml\s+.*encoding=")(.*)(".*\?>)$/m',
+                    '${1}' . static::TARGET_ENCODING . '${3}',
+                    $url_content['http_body']
+                );
+                $url_content['http_body'] = iconv($encoding, static::TARGET_ENCODING, $url_content['http_body']);
+            }
+        }
+        $encoding = static::TARGET_ENCODING;
+
         // Disable standard XML errors
         libxml_use_internal_errors(true);
         $doc = new DOMDocument();
@@ -316,6 +339,7 @@ class Feed
                 $item_num++;
                 $item_xpath = new DOMXpath($doc);
                 Feedeliser::registerXpathNamespaces($item_xpath, $this->xml_namespaces);
+                $original_title = $original_content = '';
 
                 // Item link: we just need the value, not the XML node
                 $link_node = $item_xpath->query($this->item_link_xpath, $item)->item(0);
@@ -342,6 +366,10 @@ class Feed
                 {
                     $this->logger->warning("Feed \"$this->name\": no title found for item #$item_num ($link)");
                 }
+                else
+                {
+                    $original_title = $title_node->nodeValue;
+                }
 
                 // Item content: we need the XML node to replace its content
                 $content_node = $item_xpath->query($this->item_content_xpath, $item)->item(0);
@@ -349,12 +377,16 @@ class Feed
                 {
                     $this->logger->warning("Feed \"$this->name\": no content found for item #$item_num ($link)");
                 }
+                else
+                {
+                    $original_content = $content_node->nodeValue;
+                }
 
                 // Get the item content, from cache if available
-                $item_content = $this->feedeliser->getItemContent($this, $link);
+                $item_content = $this->feedeliser->getItemContent($this, $link, $original_title, $original_content);
 
-                // Replace title and content, with CDATA sections, only if not empty
-                if ($item_content['title'])
+                // Replace title and content, with CDATA sections, only if different from original
+                if ($item_content['title'] !== $original_title)
                 {
                     Feedeliser::replaceContentCdata(
                         $doc,
@@ -364,7 +396,7 @@ class Feed
                         $item_content['title']
                     );
                 }
-                if ($item_content['content'])
+                if ($item_content['content'] !== $original_content)
                 {
                     Feedeliser::replaceContentCdata(
                         $doc,
@@ -390,7 +422,7 @@ class Feed
             $output_data = call_user_func($this->finalize, $output_data);
         }
 
-        header('Content-Type: application/xml' . ($doc->encoding ? '; charset=' . $doc->encoding : ''));
+        header('Content-Type: application/xml; charset=' . static::TARGET_ENCODING);
         echo $output_data;
 
         return true;

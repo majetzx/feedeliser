@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "d8444ee4fa8094e6432f91b644ca195c",
+    "content-hash": "c7ca3229249cebb8e33b879f36ef2664",
     "packages": [
         {
             "name": "andreskrey/readability.php",
@@ -201,7 +201,9 @@
         "php": "^7.0",
         "ext-curl": "*",
         "ext-sqlite3": "*",
-        "ext-libxml": "*"
+        "ext-libxml": "*",
+        "ext-iconv": "*",
+        "ext-mbstring": "*"
     },
     "platform-dev": []
 }
