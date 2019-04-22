@@ -66,6 +66,8 @@ class Feedeliser
         // Feed name in query string
         $feed_name = filter_input(INPUT_SERVER, 'QUERY_STRING', FILTER_SANITIZE_STRING);
 
+        $this->logger->debug("Feedeliser::__construct(), feed \"$feed_name\": start");
+
         // No configuration file
         if (!is_file(static::$feeds_confs_dir . "/$feed_name.php"))
         {
@@ -121,6 +123,8 @@ class Feedeliser
         $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         curl_close($ch);
         
+        $this->logger->debug("Feedeliser::getUrlContent($url): $http_code");
+
         return [
             'http_body' => $http_body,
             'http_code' => $http_code,
@@ -144,6 +148,8 @@ class Feedeliser
      */
     public function getItemContent(Feed $feed, string $url, string $original_title, string $original_content): array
     {
+        $this->logger->debug("Feedeliser::getItemContent($feed, $url): start");
+        
         $this->openCache();
         $status = $title = $content = '';
         $cache_available = true;
@@ -160,7 +166,7 @@ class Feedeliser
         // Error using the cache
         if (!$get_stmt)
         {
-            $this->logger->warning("Feedeliser::getItemContent(), feed \"{$feed->getName()}\": can't prepare cache statement");
+            $this->logger->warning("Feedeliser::getItemContent($feed, $url): can't prepare cache statement");
             $cache_available = false;
         }
 
@@ -174,6 +180,8 @@ class Feedeliser
             // A result: read values and update the last access timestamp
             if ($row)
             {
+                $this->logger->debug("Feedeliser::getItemContent($feed, $url): found in cache");
+
                 $status = 'cache';
                 $title = $row['title'];
                 $content = $row['content'];
@@ -195,6 +203,8 @@ class Feedeliser
         // If not found in cache, get URL content
         if ($status != 'cache')
         {
+            $this->logger->debug("Feedeliser::getItemContent($feed, $url): not found in cache");
+
             $url_content = $this->getUrlContent($url);
             if ($url_content['http_code'] == 200)
             {
@@ -204,6 +214,7 @@ class Feedeliser
                 $encoding = mb_detect_encoding($url_content['http_body']);
                 if ($encoding !== false && $encoding != Feed::TARGET_ENCODING)
                 {
+                    $this->logger->debug("Feedeliser::getItemContent($feed, $url): convert from encoding \"$encoding\"");
                     $url_content['http_body'] = iconv($encoding, Feed::TARGET_ENCODING, $url_content['http_body']);
                 }
 
@@ -220,7 +231,7 @@ class Feedeliser
                     catch (ParseException $e)
                     {
                         $this->logger->warning(
-                            "Feedeliser::getItemContent(), feed \"{$feed->getName()}\": Readability exception while parsing content from URL $url",
+                            "Feedeliser::getItemContent($feed, $url): Readability exception while parsing content from URL",
                             [
                                 'exception' => $e,
                             ]
@@ -262,7 +273,7 @@ class Feedeliser
                 if (!$title && !$content)
                 {
                     $this->logger->warning(
-                        "Feedeliser::getItemContent(), feed \"{$feed->getName()}\": empty title and content for URL $url"
+                        "Feedeliser::getItemContent($feed, $url): empty title and content for URL"
                     );
                     $status = 'error';
                 }
@@ -286,8 +297,7 @@ class Feedeliser
             else
             {
                 $this->logger->warning(
-                    "Feedeliser::getItemContent(), feed \"{$feed->getName()}\": can't get content from URL $url, " .
-                    "invalid HTTP code {$url_content['http_code']}"
+                    "Feedeliser::getItemContent($feed, $url): can't get content from URL, invalid HTTP code {$url_content['http_code']}"
                 );
                 $status = 'error';
                 if ($url_content['http_code'] == 403)

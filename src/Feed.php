@@ -138,6 +138,8 @@ class Feed
      */
     public function __construct(Feedeliser $feedeliser, string $name, array $config, LoggerInterface $logger)
     {
+        $logger->info("Feed::__construct($name): start");
+
         // Argument: feedeliser
         $this->feedeliser = $feedeliser;
 
@@ -149,7 +151,7 @@ class Feed
         {
             if ($config['source_type'] !== self::SOURCE_FEED && $config['source_type'] !== self::SOURCE_PAGE)
             {
-                throw new \InvalidArgumentException("Feed::__construct(), feed \"$this->name\": invalid argument source_type");
+                throw new \InvalidArgumentException("Feed::__construct($this): invalid argument source_type");
             }
             $this->source_type = $config['source_type'];
         }
@@ -159,11 +161,11 @@ class Feed
         {
             if (!isset($config['title']))
             {
-                throw new \InvalidArgumentException("Feed::__construct(), feed \"$this->name\": missing argument title");
+                throw new \InvalidArgumentException("Feed::__construct($this): missing argument title");
             }
             if (!is_string($config['title']))
             {
-                throw new \InvalidArgumentException("Feed::__construct(), feed \"$this->name\": invalid argument type title");
+                throw new \InvalidArgumentException("Feed::__construct($this): invalid argument type title");
             }
             $this->title = $config['title'];
         }
@@ -171,15 +173,15 @@ class Feed
         // Argument: url
         if (!isset($config['url']))
         {
-            throw new \InvalidArgumentException("Feed::__construct(), feed \"$this->name\": missing argument url");
+            throw new \InvalidArgumentException("Feed::__construct($this): missing argument url");
         }
         if (!is_string($config['url']))
         {
-            throw new \InvalidArgumentException("Feed::__construct(), feed \"$this->name\": invalid argument type url");
+            throw new \InvalidArgumentException("Feed::__construct($this): invalid argument type url");
         }
         if (filter_var($config['url'], FILTER_VALIDATE_URL) === false)
         {
-            throw new \InvalidArgumentException("Feed::__construct(), feed \"$this->name\": invalid argument url");
+            throw new \InvalidArgumentException("Feed::__construct($this): invalid argument url");
         }
         $this->url = $config['url'];
 
@@ -188,13 +190,13 @@ class Feed
         {
             if (!is_string($config['items_xpath']))
             {
-                throw new \InvalidArgumentException("Feed::__construct(), feed \"$this->name\": invalid argument type items_xpath");
+                throw new \InvalidArgumentException("Feed::__construct($this): invalid argument type items_xpath");
             }
             $this->items_xpath = $config['items_xpath'];
         }
         else if ($this->source_type == static::SOURCE_PAGE)
         {
-            throw new \InvalidArgumentException("Feed::__construct(), feed \"$this->name\": missing argument items_xpath for source_type=SOURCE_PAGE");
+            throw new \InvalidArgumentException("Feed::__construct($this): missing argument items_xpath for source_type=SOURCE_PAGE");
         }
 
         // Argument: item_link_xpath
@@ -202,13 +204,13 @@ class Feed
         {
             if (!is_string($config['item_link_xpath']))
             {
-                throw new \InvalidArgumentException("Feed::__construct(), feed \"$this->name\": invalid argument type item_link_xpath");
+                throw new \InvalidArgumentException("Feed::__construct($this): invalid argument type item_link_xpath");
             }
             $this->item_link_xpath = $config['item_link_xpath'];
         }
         else if ($this->source_type == static::SOURCE_PAGE)
         {
-            throw new \InvalidArgumentException("Feed::__construct(), feed \"$this->name\": missing argument item_link_xpath for source_type=SOURCE_PAGE");
+            throw new \InvalidArgumentException("Feed::__construct($this): missing argument item_link_xpath for source_type=SOURCE_PAGE");
         }
 
         // Argument: item_link_prefix
@@ -216,7 +218,7 @@ class Feed
         {
             if (!is_string($config['item_link_prefix']))
             {
-                throw new \InvalidArgumentException("Feed::__construct(), feed \"$this->name\": invalid argument type item_link_prefix");
+                throw new \InvalidArgumentException("Feed::__construct($this): invalid argument type item_link_prefix");
             }
             $this->item_link_prefix = $config['item_link_prefix'];
         }
@@ -226,7 +228,7 @@ class Feed
         {
             if (!is_string($config['item_title_xpath']))
             {
-                throw new \InvalidArgumentException("Feed::__construct(), feed \"$this->name\": invalid argument type item_title_xpath");
+                throw new \InvalidArgumentException("Feed::__construct($this): invalid argument type item_title_xpath");
             }
             $this->item_title_xpath = $config['item_title_xpath'];
         }
@@ -236,7 +238,7 @@ class Feed
         {
             if (!is_string($config['item_content_xpath']))
             {
-                throw new \InvalidArgumentException("Feed::__construct(), feed \"$this->name\": invalid argument type item_content_xpath");
+                throw new \InvalidArgumentException("Feed::__construct($this): invalid argument type item_content_xpath");
             }
             $this->item_content_xpath = $config['item_content_xpath'];
         }
@@ -246,7 +248,7 @@ class Feed
         {
             if (!is_string($config['item_time_xpath']))
             {
-                throw new \InvalidArgumentException("Feed::__construct(), feed \"$this->name\": invalid argument type item_time_xpath");
+                throw new \InvalidArgumentException("Feed::__construct($this): invalid argument type item_time_xpath");
             }
             $this->item_time_xpath = $config['item_time_xpath'];
         }
@@ -256,7 +258,7 @@ class Feed
         {
             if (!is_callable($config['item_callback']))
             {
-                throw new \InvalidArgumentException("Feed::__construct(), feed \"$this->name\": invalid argument type item_callback");
+                throw new \InvalidArgumentException("Feed::__construct($this): invalid argument type item_callback");
             }
             $this->item_callback = $config['item_callback'];
         }
@@ -272,7 +274,7 @@ class Feed
         {
             if (!is_int($config['cache_limit']))
             {
-                throw new \InvalidArgumentException("Feed::__construct(), feed \"$this->name\": invalid argument type cache_limit");
+                throw new \InvalidArgumentException("Feed::__construct($this): invalid argument type cache_limit");
             }
             $this->cache_limit = (int) $config['cache_limit'];
         }
@@ -282,7 +284,7 @@ class Feed
         {
             if (!is_array($config['xml_namespaces']))
             {
-                throw new \InvalidArgumentException("Feed::__construct(), feed \"$this->name\": invalid argument type xml_namespaces");
+                throw new \InvalidArgumentException("Feed::__construct($this): invalid argument type xml_namespaces");
             }
             $this->xml_namespaces = $config['xml_namespaces'];
         }
@@ -327,12 +329,14 @@ class Feed
      */
     public function generate(): bool
     {
+        $this->logger->debug("Feed::generate($this): start");
+
         $url_content = $this->feedeliser->getUrlContent($this->url);
 
         // We need a 200 response
         if ($url_content['http_code'] != 200)
         {
-            $this->logger->warning("Feed::generate(), feed \"$this->name\": invalid HTTP code {$url_content['http_code']}");
+            $this->logger->warning("Feed::generate($this): invalid HTTP code {$url_content['http_code']}");
             return false;
         }
 
@@ -343,6 +347,7 @@ class Feed
             $encoding = $matches[1];
             if (strtoupper($encoding) != strtoupper(static::TARGET_ENCODING))
             {
+                $this->logger->debug("Feed::generate($this): convert from encoding \"$encoding\"");
                 $url_content['http_body'] = preg_replace(
                     '/^(<\?xml\s+.*encoding=")([a-z0-9-]+)(".*\?>)$/m',
                     '${1}' . static::TARGET_ENCODING . '${3}',
@@ -379,12 +384,12 @@ class Feed
         $items = $doc_xpath->query($this->items_xpath);
         if ($items === false)
         {
-            $this->logger->warning("Feed::generate(), feed \"$this->name\": invalid \"items_xpath\" parameter");
+            $this->logger->warning("Feed::generate($this): invalid \"items_xpath\" parameter");
             return false;
         }
         if (!$items->length)
         {
-            $this->logger->warning("Feed::generate(), feed \"$this->name\": no item found");
+            $this->logger->warning("Feed::generate($this): no item found");
             return false;
         }
 
@@ -404,14 +409,14 @@ class Feed
                 $link_node = $item_xpath->query($this->item_link_xpath, $item)->item(0);
                 if (!$link_node)
                 {
-                    $this->logger->warning("Feed::generate(), feed \"$this->name\": no link found for item #$item_num");
+                    $this->logger->warning("Feed::generate($this): no link found for item #$item_num");
                     continue;
                 }
                 // Try the node value
                 $link = $link_node->nodeValue;
                 if (!$link)
                 {
-                    $this->logger->warning("Feed::generate(), feed \"$this->name\": empty link for item #$item_num");
+                    $this->logger->warning("Feed::generate($this): empty link for item #$item_num");
                     continue;
                 }
 
@@ -419,7 +424,7 @@ class Feed
                 $title_node = $item_xpath->query($this->item_title_xpath, $item)->item(0);
                 if (!$title_node)
                 {
-                    $this->logger->warning("Feed::generate(), feed \"$this->name\": no title found for item #$item_num ($link)");
+                    $this->logger->warning("Feed::generate($this): no title found for item #$item_num ($link)");
                 }
                 else
                 {
@@ -430,7 +435,7 @@ class Feed
                 $content_node = $item_xpath->query($this->item_content_xpath, $item)->item(0);
                 if (!$content_node)
                 {
-                    $this->logger->warning("Feed::generate(), feed \"$this->name\": no content found for item #$item_num ($link)");
+                    $this->logger->warning("Feed::generate($this): no content found for item #$item_num ($link)");
                 }
                 else
                 {
@@ -463,6 +468,8 @@ class Feed
                 }
             }
 
+            $this->logger->debug("Feed::generate($this): $item_num items found");
+
             $output_data = $doc->saveXML();
         }
         // A web page
@@ -489,7 +496,7 @@ class Feed
                 $link_node = $item_xpath->query($this->item_link_xpath, $item)->item(0);
                 if (!$link_node)
                 {
-                    $this->logger->warning("Feed::generate(), feed \"$this->name\": no link found for item #$item_num");
+                    $this->logger->warning("Feed::generate($this): no link found for item #$item_num");
                     continue;
                 }
                 // Get the node value, with optional prefix
@@ -500,7 +507,7 @@ class Feed
                 }
                 if (!$link || !filter_var($link, FILTER_VALIDATE_URL))
                 {
-                    $this->logger->warning("Feed::generate(), feed \"$this->name\": empty link for item #$item_num");
+                    $this->logger->warning("Feed::generate($this): empty link for item #$item_num");
                     continue;
                 }
 
@@ -562,6 +569,8 @@ class Feed
                 ];
             }
 
+            $this->logger->debug("Feed::generate($this): $item_num items found");
+
             $output_data = ArrayToXml::convert($xml, 'rss');
         }
 
@@ -569,5 +578,15 @@ class Feed
         echo $output_data;
 
         return true;
+    }
+
+    /**
+     * Return the feed name
+     * 
+     * @return string
+     */
+    public function __toString()
+    {
+        return $this->getName();
     }
 }
