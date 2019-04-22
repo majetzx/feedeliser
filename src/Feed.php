@@ -423,12 +423,8 @@ class Feed
                     $this->logger->warning("Feed \"$this->name\": no link found for item #$item_num");
                     continue;
                 }
-                // Try the node value or an href attribute
+                // Try the node value
                 $link = $link_node->nodeValue;
-                if (!$link && $link_node->hasAttribute('href'))
-                {
-                    $link = $link_node->getAttribute('href');
-                }
                 if (!$link)
                 {
                     $this->logger->warning("Feed \"$this->name\": empty link for item #$item_num");
