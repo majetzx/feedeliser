@@ -500,19 +500,11 @@ class Feed
                     $this->logger->warning("Feed \"$this->name\": no link found for item #$item_num");
                     continue;
                 }
-                // Try the node value or an href attribute, with optional prefix
+                // Get the node value, with optional prefix
                 $link = $link_node->nodeValue;
                 if ($link && $this->item_link_prefix)
                 {
                     $link = $this->item_link_prefix . $link;
-                }
-                if ((!$link || !filter_var($link, FILTER_VALIDATE_URL)) && $link_node->hasAttribute('href'))
-                {
-                    $link = $link_node->getAttribute('href');
-                    if ($link && $this->item_link_prefix)
-                    {
-                        $link = $this->item_link_prefix . $link;
-                    }
                 }
                 if (!$link || !filter_var($link, FILTER_VALIDATE_URL))
                 {
@@ -520,6 +512,56 @@ class Feed
                     continue;
                 }
 
+                // Item title: optional
+                if ($this->item_title_xpath)
+                {
+                    $title_node = $item_xpath->query($this->item_title_xpath, $item)->item(0);
+                    if ($title_node)
+                    {
+                        $original_title = $title_node->nodeValue;
+                    }
+                }
+
+                // Item content: optional
+                if ($this->item_content_xpath)
+                {
+                    $content_node = $item_xpath->query($this->item_content_xpath, $item)->item(0);
+                    if ($content_node)
+                    {
+                        $original_content = $content_node->nodeValue;
+                    }
+                }
+
+                // Item date-time: optional
+                if ($this->item_time_xpath)
+                {
+                    $time_node = $item_xpath->query($this->item_time_xpath, $item)->item(0);
+                    if ($time_node)
+                    {
+                        $original_time = strtotime($time_node->nodeValue);
+                    }
+                }
+                echo "$link<br>";
+                // Get the content from the page or from cache if available
+                if (!$original_title || !$original_content)
+                {
+                    $item_content = $this->feedeliser->getItemContent($this, $link, $original_title, $original_content);
+
+                    if (!$original_title && $item_content['title'])
+                    {
+                        echo "original_title depuis getItemContent()<br>";
+                        $original_title = $item_content['title'];
+                    }
+                    if (!$original_content && $item_content['content'])
+                    {
+                        echo "original_content depuis getItemContent()<br>";
+                        $original_content = $item_content['content'];
+                    }
+                }
+
+                echo "title = $original_title<br>";
+                echo "time = $original_time<br>";
+                echo "content = $original_content<br>";
             }
         }
 
