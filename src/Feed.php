@@ -123,12 +123,6 @@ class Feed
     protected $xml_namespaces = array();
 
     /**
-     * A callback called to finalize the data
-     * @var callable
-     */
-    protected $finalize;
-
-    /**
      * Logger
      * @var \Psr\Log\LoggerInterface
      */
@@ -291,16 +285,6 @@ class Feed
                 throw new \InvalidArgumentException("Feed::__construct(), feed \"$this->name\": invalid argument type xml_namespaces");
             }
             $this->xml_namespaces = $config['xml_namespaces'];
-        }
-
-        // Argument: finalize
-        if (isset($config['finalize']))
-        {
-            if (!is_callable($config['finalize']))
-            {
-                throw new \InvalidArgumentException("Feed::__construct(), feed \"$this->name\": invalid argument type finalize");
-            }
-            $this->finalize = $config['finalize'];
         }
 
         $this->logger = $logger;
@@ -579,12 +563,6 @@ class Feed
             }
 
             $output_data = ArrayToXml::convert($xml, 'rss');
-        }
-
-        // Optional finalizer
-        if ($this->finalize)
-        {
-            $output_data = call_user_func($this->finalize, $output_data);
         }
 
         header('Content-Type: application/xml; charset=' . static::TARGET_ENCODING);
