@@ -5,6 +5,7 @@ namespace majetzx\feedeliser;
 
 use Psr\Log\LoggerInterface;
 use DOMDocument, DOMXpath;
+use Spatie\ArrayToXml\ArrayToXml;
 
 /**
  * Feed class
@@ -487,11 +488,22 @@ class Feed
         // A web page
         else if ($this->source_type == self::SOURCE_PAGE)
         {
+            $xml = [
+                '_attributes' => ['version' => '2.0'],
+                'channel' => [
+                    'title' => $this->title,
+                    'link' => $this->url,
+                    'description' => '',
+                    'item' => [],
+                ],
+            ];
+
             foreach ($items as $item)
             {
                 $item_num++;
                 $item_xpath = new DOMXpath($doc);
-                $original_title = $original_time = $original_content = '';
+                $original_title = $original_content = '';
+                $original_time = time();
                 
                 // Item link: we just need the value, not the XML node
                 $link_node = $item_xpath->query($this->item_link_xpath, $item)->item(0);
@@ -538,10 +550,14 @@ class Feed
                     $time_node = $item_xpath->query($this->item_time_xpath, $item)->item(0);
                     if ($time_node)
                     {
-                        $original_time = strtotime($time_node->nodeValue);
+                        $ts = strtotime($time_node->nodeValue);
+                        if ($ts !== false)
+                        {
+                            $original_time = $ts;
+                        }
                     }
                 }
-                echo "$link<br>";
+                
                 // Get the content from the page or from cache if available
                 if (!$original_title || !$original_content)
                 {
@@ -549,20 +565,24 @@ class Feed
 
                     if (!$original_title && $item_content['title'])
                     {
-                        echo "original_title depuis getItemContent()<br>";
                         $original_title = $item_content['title'];
                     }
                     if (!$original_content && $item_content['content'])
                     {
-                        echo "original_content depuis getItemContent()<br>";
                         $original_content = $item_content['content'];
                     }
                 }
 
-                echo "title = $original_title<br>";
-                echo "time = $original_time<br>";
-                echo "content = $original_content<br>";
+                $xml['channel']['item'][] = [
+                    'title' => ['_cdata' => $original_title],
+                    'link' => $link,
+                    'description' => ['_cdata' => $original_content],
+                    'pubDate' => date(DATE_RSS, $original_time),
+                    'guid' => $link,
+                ];
             }
+
+            $output_data = ArrayToXml::convert($xml, 'rss');
         }
 
         // Optional finalizer
@@ -571,8 +591,8 @@ class Feed
             $output_data = call_user_func($this->finalize, $output_data);
         }
 
-        //header('Content-Type: application/xml; charset=' . static::TARGET_ENCODING);
-        //echo $output_data;
+        header('Content-Type: application/xml; charset=' . static::TARGET_ENCODING);
+        echo $output_data;
 
         return true;
     }
