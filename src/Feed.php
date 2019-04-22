@@ -138,7 +138,7 @@ class Feed
      */
     public function __construct(Feedeliser $feedeliser, string $name, array $config, LoggerInterface $logger)
     {
-        $logger->info("Feed::__construct($name): start");
+        $logger->debug("Feed::__construct($name): start");
 
         // Argument: feedeliser
         $this->feedeliser = $feedeliser;
