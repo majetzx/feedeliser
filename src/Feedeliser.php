@@ -69,7 +69,7 @@ class Feedeliser
         // No configuration file
         if (!is_file(static::$feeds_confs_dir . "/$feed_name.php"))
         {
-            $this->logger->error("Feed \"$feed_name\": missing configuration file");
+            $this->logger->error("Feedeliser::__construct(), feed \"$feed_name\": missing configuration file");
             return false;
         }
 
@@ -160,7 +160,7 @@ class Feedeliser
         // Error using the cache
         if (!$get_stmt)
         {
-            $this->logger->warning("Feed \"{$feed->getName()}\": can't prepare cache statement");
+            $this->logger->warning("Feedeliser::getItemContent(), feed \"{$feed->getName()}\": can't prepare cache statement");
             $cache_available = false;
         }
 
@@ -220,7 +220,7 @@ class Feedeliser
                     catch (ParseException $e)
                     {
                         $this->logger->warning(
-                            "Feed \"{$feed->getName()}\": Readability exception while parsing content from URL $url",
+                            "Feedeliser::getItemContent(), feed \"{$feed->getName()}\": Readability exception while parsing content from URL $url",
                             [
                                 'exception' => $e,
                             ]
@@ -262,7 +262,7 @@ class Feedeliser
                 if (!$title && !$content)
                 {
                     $this->logger->warning(
-                        "Feed \"{$feed->getName()}\": empty title and content for URL $url"
+                        "Feedeliser::getItemContent(), feed \"{$feed->getName()}\": empty title and content for URL $url"
                     );
                     $status = 'error';
                 }
@@ -286,7 +286,7 @@ class Feedeliser
             else
             {
                 $this->logger->warning(
-                    "Feed \"{$feed->getName()}\": can't get content from URL $url, " .
+                    "Feedeliser::getItemContent(), feed \"{$feed->getName()}\": can't get content from URL $url, " .
                     "invalid HTTP code {$url_content['http_code']}"
                 );
                 $status = 'error';
