@@ -43,6 +43,12 @@ class Feedeliser
     public static $curl_cookie_jar = 'datas/curl_cookies';
 
     /**
+     * Text file containing one IP address per line, one is randomly chosen for outbound connection
+     * @var string
+     */
+    public static $curl_ip_addresses_file = 'datas/curl_ips';
+
+    /**
      * Logger
      * @var \Psr\Log\LoggerInterface
      */
@@ -53,6 +59,18 @@ class Feedeliser
      * @var \SQLite3
      */
     protected static $feeds_cache;
+
+    /**
+     * Whether to an IP address from those in static::$curl_ip_addresses, if available
+     * @var bool
+     */
+    protected static $curl_use_ip_address = false;
+
+    /**
+     * List of IP addresses for curl outbound connection, if available
+     * @var string[]
+     */
+    protected static $curl_ip_addresses = [];
 
     /**
      * Constructor
@@ -75,6 +93,8 @@ class Feedeliser
             return false;
         }
 
+        static::initializeCurlIpAddresses();
+
         // Create an anonymous object and generate the feed
         (new Feed(
             $this,
@@ -92,6 +112,33 @@ class Feedeliser
         if (!static::$feeds_cache)
         {
             static::$feeds_cache = new SQLite3(static::$sqlite_cache_db_path, SQLITE3_OPEN_READWRITE);
+        }
+    }
+
+    /**
+     * Initialize outbound IP addresses to be used by curl, from a text file
+     * 
+     * @see static::$curl_ip_addresses
+     */
+    protected static function initializeCurlIpAddresses()
+    {
+        static::$curl_use_ip_address = false;
+        if (static::$curl_ip_addresses && is_file(static::$curl_ip_addresses))
+        {
+            $ips = [];
+            foreach (file(static::$curl_ip_addresses) as $ip)
+            {
+                $ip = trim($ip);
+                if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE|FILTER_FLAG_NO_RES_RANGE))
+                {
+                    $ips[] = $ip;
+                }
+            }
+            if (count($ips))
+            {
+                static::$curl_ip_addresses = $ips;
+                static::$curl_use_ip_address = true;
+            }
         }
     }
 
@@ -120,6 +167,12 @@ class Feedeliser
         curl_setopt($ch, CURLOPT_COOKIEFILE, static::$curl_cookie_jar);
         curl_setopt($ch, CURLOPT_COOKIEJAR, static::$curl_cookie_jar);
         curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+        // Outbound IP address
+        if (static::$curl_use_ip_address)
+        {
+            $key = array_rand(static::$curl_ip_addresses);
+            curl_setopt($ch, CURLOPT_INTERFACE, static::$curl_ip_addresses[$key]);
+        }
         $http_body = curl_exec($ch);
         $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         curl_close($ch);
