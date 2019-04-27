@@ -93,7 +93,7 @@ class Feedeliser
             return false;
         }
 
-        static::initializeCurlIpAddresses();
+        $this->initializeCurlIpAddresses();
 
         // Create an anonymous object and generate the feed
         (new Feed(
@@ -120,13 +120,13 @@ class Feedeliser
      * 
      * @see static::$curl_ip_addresses
      */
-    protected static function initializeCurlIpAddresses()
+    protected function initializeCurlIpAddresses()
     {
         static::$curl_use_ip_address = false;
-        if (static::$curl_ip_addresses && is_file(static::$curl_ip_addresses))
+        if (static::$curl_ip_addresses_file && is_file(static::$curl_ip_addresses_file))
         {
             $ips = [];
-            foreach (file(static::$curl_ip_addresses) as $ip)
+            foreach (file(static::$curl_ip_addresses_file) as $ip)
             {
                 $ip = trim($ip);
                 if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE|FILTER_FLAG_NO_RES_RANGE))
