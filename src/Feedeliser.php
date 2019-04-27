@@ -339,6 +339,9 @@ class Feedeliser
         $cache_stmt->bindValue(':datetime', $last_access, SQLITE3_INTEGER);
         $cache_stmt->execute();
         $this->logger->debug("Feedeliser::clearCache($feed): " . static::$feeds_cache->changes() . " entries deleted");
+
+        // Reclaim empty space
+        static::$feeds_cache->exec('VACUUM');
     }
 
     /**
