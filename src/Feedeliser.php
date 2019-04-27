@@ -117,6 +117,7 @@ class Feedeliser
             'Connection: keep-alive',
         ));
         // Storing cookies set by websites decreases the probability of being blocked
+        curl_setopt($ch, CURLOPT_COOKIEFILE, static::$curl_cookie_jar);
         curl_setopt($ch, CURLOPT_COOKIEJAR, static::$curl_cookie_jar);
         curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
         $http_body = curl_exec($ch);
