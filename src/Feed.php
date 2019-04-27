@@ -305,9 +305,9 @@ class Feed
     /**
      * Get the item callback
      * 
-     * @return callable
+     * @return ?callable
      */
-    public function getItemCallback(): callable
+    public function getItemCallback(): ?callable
     {
         return $this->item_callback;
     }
