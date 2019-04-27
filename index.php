@@ -12,7 +12,7 @@ require_once 'src/Feedeliser.php';
 ini_set('display_errors', 0);
 
 $log = new Logger('feedeliser');
-$log->pushHandler(new StreamHandler('datas/log'));
+$log->pushHandler(new StreamHandler('datas/log', Logger::DEBUG));
 
 try {
     new Feedeliser($log);

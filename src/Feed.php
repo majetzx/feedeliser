@@ -297,7 +297,7 @@ class Feed
      * 
      * @return string
      */
-    public function getName()
+    public function getName(): string
     {
         return $this->name;
     }
@@ -307,7 +307,7 @@ class Feed
      * 
      * @return callable
      */
-    public function getItemCallback()
+    public function getItemCallback(): callable
     {
         return $this->item_callback;
     }
@@ -317,15 +317,25 @@ class Feed
      * 
      * @return bool
      */
-    public function getReadability()
+    public function getReadability(): bool
     {
         return $this->readability;
     }
 
     /**
+     * Get the cache limit in seconds
+     * 
+     * @return int
+     */
+    public function getCacheLimit(): int
+    {
+        return $this->cache_limit;
+    }
+
+    /**
      * Generate the feed
      * 
-     * @return mixed false in case of error
+     * @return bool false in case of error
      */
     public function generate(): bool
     {
@@ -577,6 +587,9 @@ class Feed
         header('Content-Type: application/xml; charset=' . static::TARGET_ENCODING);
         echo $output_data;
 
+        // Clears the cache before exiting
+        $this->feedeliser->clearCache($this);
+
         return true;
     }
 
@@ -585,7 +598,7 @@ class Feed
      * 
      * @return string
      */
-    public function __toString()
+    public function __toString(): string
     {
         return $this->getName();
     }

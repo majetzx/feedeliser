@@ -322,6 +322,26 @@ class Feedeliser
     }
 
     /**
+     * Clear cache entries for a feed, last accessed before the feed's cache limit
+     * 
+     * @param \majetzx\feedeliser\Feed $feed the Feed object
+     */
+    public function clearCache(Feed $feed)
+    {
+        $this->openCache();
+
+        // Calculate the date before which entries must be deleted
+        $last_access = time() - $feed->getCacheLimit();
+        $this->logger->debug("Feedeliser::clearCache($feed): delete cache entries last accessed before " . date('Y-m-d H:i:s', $last_access));
+        
+        $cache_stmt = static::$feeds_cache->prepare('DELETE FROM feed_entry WHERE feed = :feed AND last_access < :datetime');
+        $cache_stmt->bindValue(':feed', $feed->getName(), SQLITE3_TEXT);
+        $cache_stmt->bindValue(':datetime', $last_access, SQLITE3_INTEGER);
+        $cache_stmt->execute();
+        $this->logger->debug("Feedeliser::clearCache($feed): " . static::$feeds_cache->changes() . " entries deleted");
+    }
+
+    /**
      * Add namespaces to an XPath object
      *
      * @param \DOMXPath $xpath XPath object
