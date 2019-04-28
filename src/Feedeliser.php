@@ -295,13 +295,6 @@ class Feedeliser
                     }
                 }
 
-                // A callback on the content
-                $item_callback = $feed->getItemCallback();
-                if ($item_callback)
-                {
-                    call_user_func_array($item_callback, [&$title, &$content, $url_content['http_body']]);
-                }
-
                 // Reuse original values if new ones are empty
                 if (!$title)
                 {
@@ -310,6 +303,13 @@ class Feedeliser
                 if (!$content)
                 {
                     $content = $original_content;
+                }
+
+                // A callback on the content
+                $item_callback = $feed->getItemCallback();
+                if ($item_callback)
+                {
+                    call_user_func_array($item_callback, [&$title, &$content, $url_content['http_body']]);
                 }
 
                 // Do some standard cleaning on the title and content
