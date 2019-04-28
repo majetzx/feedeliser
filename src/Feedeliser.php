@@ -172,7 +172,7 @@ class Feedeliser
         {
             $key = array_rand(static::$curl_ip_addresses);
             curl_setopt($ch, CURLOPT_INTERFACE, static::$curl_ip_addresses[$key]);
-            $this->logger->debug("Feedeliser::getUrlContent(string $url): use <" . static::$curl_ip_addresses[$key] . "> outbound IP address");
+            $this->logger->debug("Feedeliser::getUrlContent($url): use <" . static::$curl_ip_addresses[$key] . "> outbound IP address");
         }
         $http_body = curl_exec($ch);
         $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
