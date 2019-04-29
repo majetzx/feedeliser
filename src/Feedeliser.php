@@ -312,6 +312,16 @@ class Feedeliser
                     call_user_func_array($item_callback, [&$title, &$content, $url_content['http_body']]);
                 }
 
+                // Reuse original values if new ones are empty
+                if (!$title)
+                {
+                    $title = $original_title;
+                }
+                if (!$content)
+                {
+                    $content = $original_content;
+                }
+
                 // Do some standard cleaning on the title and content
                 list($title, $content) = str_replace(
                     ['&#xD;', '&#xA;', "\xC2\x92", ],
