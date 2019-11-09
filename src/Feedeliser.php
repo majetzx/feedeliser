@@ -61,7 +61,7 @@ class Feedeliser
     protected static $feeds_cache;
 
     /**
-     * Whether to an IP address from those in static::$curl_ip_addresses, if available
+     * Whether to use an IP address from those in static::$curl_ip_addresses, if available
      * @var bool
      */
     protected static $curl_use_ip_address = false;
@@ -105,7 +105,7 @@ class Feedeliser
     }
 
     /**
-     * Opens the SQLite cache connection
+     * Open the SQLite cache connection
      */
     protected function openCache()
     {
@@ -153,7 +153,7 @@ class Feedeliser
     {
         $ch = curl_init($url);
         // Feedeliser identifies itself as a real browser to bypass bot protections
-        curl_setopt($ch, CURLOPT_USERAGENT, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/73.0.3683.86 Safari/537.36');
+        curl_setopt($ch, CURLOPT_USERAGENT, 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/78.0.3904.97 Safari/537.36');
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_ENCODING, ''); // empty string to accept all encodings
         curl_setopt($ch, CURLOPT_HTTPHEADER, array(
@@ -209,10 +209,6 @@ class Feedeliser
         $status = $title = $content = '';
         $cache_available = true;
 
-        // Delete the query string from URL
-        $url_parts = parse_url($url);
-        $url = $url_parts['scheme'] . '://' . $url_parts['host'] . $url_parts['path'];
-
         // Check if URL is already in cache
         $get_stmt = static::$feeds_cache->prepare(
             'SELECT title, content FROM feed_entry WHERE feed = :feed AND url = :url'
@@ -267,6 +263,7 @@ class Feedeliser
 
                 // Change encoding if it's not in the target encoding
                 $encoding = mb_detect_encoding($url_content['http_body']);
+                $this->logger->debug("Feedeliser::getItemContent($feed, $url): detected encoding \"$encoding\"");
                 if ($encoding !== false && $encoding != Feed::TARGET_ENCODING)
                 {
                     $this->logger->debug("Feedeliser::getItemContent($feed, $url): convert from encoding \"$encoding\"");
@@ -420,6 +417,23 @@ class Feedeliser
         {
             $xpath->registerNameSpace($namespace, $url);
         }
+    }
+
+    /**
+     * Replace a text node with another text node
+     *
+     * @param \DOMDocument $doc the DOM document
+     * @param \DOMNode $block the DOM node representing the block
+     * @param \DOMXPath $xpath the XPath object
+     * @param string $node_path the path to the content node
+     * @param string $content the content to replace the original content
+     */
+    public static function replaceContent(DOMDocument $doc, DOMNode $block, DOMXPath $xpath, string $node_path, string $content)
+    {
+        $node = $xpath->query($node_path, $block)->item(0);
+        static::deleteDomChildren($node->childNodes);
+        $text = $doc->createTextNode($content);
+        $node->appendChild($text);
     }
 
     /**

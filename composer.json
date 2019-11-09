@@ -5,7 +5,7 @@
 	"homepage": "https://github.com/majetzx/feedeliser",
     "require": {
 		"php": "^7.0",
-    "ext-curl": "*",
+    	"ext-curl": "*",
 		"ext-sqlite3": "*",
 		"ext-libxml": "*",
 		"ext-iconv": "*",

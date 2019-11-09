@@ -359,7 +359,7 @@ class Feed
             {
                 $this->logger->debug("Feed::generate($this): convert from encoding \"$encoding\"");
                 $url_content['http_body'] = preg_replace(
-                    '/^(<\?xml\s+.*encoding=")([a-z0-9-]+)(".*\?>)$/m',
+                    '/^(<\?xml\s+.*encoding=")([a-zA-Z0-9-]+)(".*\?>)$/m',
                     '${1}' . static::TARGET_ENCODING . '${3}',
                     $url_content['http_body']
                 );
@@ -413,7 +413,7 @@ class Feed
                 $item_num++;
                 $item_xpath = new DOMXpath($doc);
                 Feedeliser::registerXpathNamespaces($item_xpath, $this->xml_namespaces);
-                $original_title = $original_content = '';
+                $original_link = $original_title = $original_content = '';
 
                 // Item link: we just need the value, not the XML node
                 $link_node = $item_xpath->query($this->item_link_xpath, $item)->item(0);
@@ -423,11 +423,23 @@ class Feed
                     continue;
                 }
                 // Try the node value
-                $link = $link_node->nodeValue;
+                $original_link = $link_node->nodeValue;
+                $link = $this->cleanLink($original_link);
                 if (!$link)
                 {
                     $this->logger->warning("Feed::generate($this): empty link for item #$item_num");
                     continue;
+                }
+                // Replace link, only if different from original
+                if ($original_link != $link)
+                {
+                    Feedeliser::replaceContent(
+                        $doc,
+                        $item,
+                        $item_xpath,
+                        $this->item_link_xpath,
+                        $link
+                    );
                 }
 
                 // Item title: we need the XML node to replace its content in some cases
@@ -510,7 +522,7 @@ class Feed
                     continue;
                 }
                 // Get the node value, with optional prefix
-                $link = $link_node->nodeValue;
+                $link = $this->cleanLink($link_node->nodeValue);
                 if ($link && $this->item_link_prefix)
                 {
                     $link = $this->item_link_prefix . $link;
@@ -591,6 +603,22 @@ class Feed
         $this->feedeliser->clearCache($this);
 
         return true;
+    }
+
+    /**
+     * Clean a link
+     * 
+     * @return string
+     */
+    protected function cleanLink(string $link): string
+    {
+        // Some links start with "http://https://"
+        $matches = array();
+        if (preg_match('/^http:\/\/(https:\/\/.*)$/', $link, $matches)) {
+            $link = $matches[1];
+        }
+
+        return $link;
     }
 
     /**
