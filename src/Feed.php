@@ -4,7 +4,7 @@ declare(strict_types=1);
 namespace majetzx\feedeliser;
 
 use Psr\Log\LoggerInterface;
-use DOMDocument, DOMXpath;
+use DOMDocument, DOMXpath, DOMProcessingInstruction;
 use Spatie\ArrayToXml\ArrayToXml;
 
 /**
@@ -380,6 +380,15 @@ class Feed
         else if ($this->source_type == self::SOURCE_PAGE)
         {
             $doc->loadHTML($url_content['http_body']);
+        }
+
+        // Remove Processing Instructions
+        foreach ($doc->childNodes as $node)
+        {
+            if ($node instanceof DOMProcessingInstruction)
+            {
+                $node->parentNode->removeChild($node);
+            }
         }
 
         $doc_xpath = new DOMXpath($doc);
