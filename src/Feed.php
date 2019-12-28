@@ -111,6 +111,12 @@ class Feed
     protected $readability = true;
 
     /**
+     * Whether the feed is a podcast
+     * @var bool
+     */
+    protected $podcast = false;
+
+    /**
      * Time to keep an item in cache
      * @var int
      */
@@ -268,6 +274,12 @@ class Feed
         {
             $this->readability = (bool) $config['readability'];
         }
+
+        // Argument: podcast
+        if (isset($config['podcast']))
+        {
+            $this->podcast = (bool) $config['podcast'];
+        }
         
         // Argument: cache_limit
         if (isset($config['cache_limit']))
@@ -320,6 +332,16 @@ class Feed
     public function getReadability(): bool
     {
         return $this->readability;
+    }
+
+    /**
+     * Get the podcast setting
+     * 
+     * @return bool
+     */
+    public function getPodcast(): bool
+    {
+        return $this->podcast;
     }
 
     /**
@@ -516,6 +538,11 @@ class Feed
                 ],
             ];
 
+            if ($this->podcast)
+            {
+                $xml['_attributes']['xmlns:itunes'] = 'http://www.itunes.com/dtds/podcast-1.0.dtd';
+            }
+
             foreach ($items as $item)
             {
                 $item_num++;
@@ -577,7 +604,8 @@ class Feed
                 }
                 
                 // Get the content from the page or from cache if available
-                if (!$original_title || !$original_content)
+                // Also get the content in case of a podcast
+                if (!$original_title || !$original_content || $this->podcast)
                 {
                     $item_content = $this->feedeliser->getItemContent($this, $link, $original_title, $original_content);
 
@@ -591,13 +619,24 @@ class Feed
                     }
                 }
 
-                $xml['channel']['item'][] = [
+                $item_array = [
                     'title' => ['_cdata' => $original_title],
                     'link' => $link,
                     'description' => ['_cdata' => $original_content],
                     'pubDate' => date(DATE_RSS, $original_time),
                     'guid' => $link,
                 ];
+
+                // Additional tags for podcasts
+                if ($this->podcast)
+                {
+                    $item_array['enclosure'] = $item_content['enclosure_url'];
+                    $item_array['itunes:block'] = 'Yes';
+                    $item_array['itunes:image'] = $item_content['image_url'];
+                    $item_array['itunes:duration'] = $item_content['duration'];
+                }
+
+                $xml['channel']['item'][] = $item_array;
             }
 
             $this->logger->debug("Feed::generate($this): $item_num items found");

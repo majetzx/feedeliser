@@ -49,6 +49,12 @@ class Feedeliser
     public static $curl_ip_addresses_file = 'datas/curl_ips';
 
     /**
+     * Feeds public directory
+     * @var string
+     */
+    public static $public_dir = 'public';
+
+    /**
      * Logger
      * @var \Psr\Log\LoggerInterface
      */
@@ -199,7 +205,7 @@ class Feedeliser
      * @param string $original_title the original item title
      * @param string $original_content the original item content
      * 
-     * @return array an array with keys "status", "title", "content"
+     * @return array an array with keys "status", "title", "content", and for podcast feeds keys "enclosure_url", "image_url", "duration"
      */
     public function getItemContent(Feed $feed, string $url, string $original_title, string $original_content): array
     {
@@ -375,11 +381,66 @@ class Feedeliser
             }
         }
 
-        return [
+        $item_content = [
             'status' => $status,
             'title' => $title,
             'content' => $content,
         ];
+
+        // Feed is a podcast, get additional values
+        if ($feed->getPodcast())
+        {
+            $podcast_status = $podcast_enclosure = $podcast_image = '';
+            $podcast_duration = 0;
+
+            $this->logger->debug("Feedeliser::getItemContent($feed, $url): [podcast] start");
+
+            $podcast_get_stmt = static::$feeds_cache->prepare(
+                'SELECT enclosure, image, duration FROM podcast_entry WHERE feed = :feed AND url = :url'
+            );
+
+            // Error using the cache
+            if (!$podcast_get_stmt)
+            {
+                $this->logger->warning("Feedeliser::getItemContent($feed, $url): [podcast] can't prepare cache statement");
+                $cache_available = false;
+            }
+            
+            if ($cache_available)
+            {
+                $podcast_get_stmt->bindValue(':feed', $feed->getName(), SQLITE3_TEXT);
+                $podcast_get_stmt->bindValue(':url', $url, SQLITE3_TEXT);
+                $podcast_result = $podcast_get_stmt->execute();
+                $podcast_row = $podcast_result->fetchArray();
+    
+                if ($podcast_row)
+                {
+                    $this->logger->debug("Feedeliser::getItemContent($feed, $url): [podcast] found in cache");
+    
+                    $podcast_status = 'cache';
+                    $podcast_enclosure = $podcast_row['enclosure'];
+                    $podcast_image = $podcast_row['image'];
+                    $podcast_duration = $podcast_row['duration'];
+                }
+    
+                $podcast_result->finalize();
+                $podcast_get_stmt->close();
+            }
+
+            // If not found in cache, get URL content
+            if ($podcast_status != 'cache')
+            {
+                $this->logger->debug("Feedeliser::getItemContent($feed, $url): [podcast] not found in cache");
+
+                //TODO
+            }
+
+            $item_content['enclosure_url'] = $podcast_enclosure;
+            $item_content['image_url'] = $podcast_image;
+            $item_content['duration'] = $podcast_duration;
+        }
+
+        return $item_content;
     }
 
     /**
