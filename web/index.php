@@ -5,7 +5,7 @@ use Monolog\Logger;
 use Monolog\Handler\StreamHandler;
 use majetzx\feedeliser\Feedeliser;
 
-chdir(__DIR__);
+chdir(dirname(__DIR__));
 
 require_once 'vendor/autoload.php';
 require_once 'src/Feed.php';
