@@ -390,13 +390,13 @@ class Feedeliser
         // Feed is a podcast, get additional values
         if ($feed->getPodcast())
         {
-            $podcast_status = $podcast_enclosure = $podcast_image = '';
+            $podcast_status = $podcast_enclosure = '';
             $podcast_duration = 0;
 
             $this->logger->debug("Feedeliser::getItemContent($feed, $url): [podcast] start");
 
             $podcast_get_stmt = static::$feeds_cache->prepare(
-                'SELECT enclosure, image, duration FROM podcast_entry WHERE feed = :feed AND url = :url'
+                'SELECT enclosure, duration FROM podcast_entry WHERE feed = :feed AND url = :url'
             );
 
             // Error using the cache
@@ -419,7 +419,6 @@ class Feedeliser
     
                     $podcast_status = 'cache';
                     $podcast_enclosure = $podcast_row['enclosure'];
-                    $podcast_image = $podcast_row['image'];
                     $podcast_duration = $podcast_row['duration'];
                 }
     
@@ -436,11 +435,117 @@ class Feedeliser
             }
 
             $item_content['enclosure_url'] = $podcast_enclosure;
-            $item_content['image_url'] = $podcast_image;
             $item_content['duration'] = $podcast_duration;
         }
 
         return $item_content;
+    }
+
+    /**
+     * Return a podcast image URL, from cache if available or from a feed/item content
+     * 
+     * @param \majetzx\feedeliser\Feed $feed the Feed object
+     * @param string $type image type, "feed" or "entry"
+     * @param string $id empty for "feed" type, item URL for "entry" type
+     * @param \DOMDocument $doc
+     * @param \DOMXpath $xpath
+     * 
+     * @return string
+     */
+    public function getPodcastImage(Feed $feed, string $type, string $id, \DOMDocument $doc, \DOMXpath $xpath): string
+    {
+        $file = '';
+
+        // Check in cache first
+        $this->openCache();
+
+        $get_stmt = static::$feeds_cache->prepare(
+            'SELECT file FROM image WHERE feed = :feed AND type = :type AND id = :id'
+        );
+
+        // Error using the cache
+        if (!$get_stmt)
+        {
+            $this->logger->warning("Feedeliser::getPodcastImage($feed, $type, $id): can't prepare cache statement");
+            return '';
+        }
+
+        $get_stmt->bindValue(':feed', $feed->getName(), SQLITE3_TEXT);
+        $get_stmt->bindValue(':type', $type, SQLITE3_TEXT);
+        $get_stmt->bindValue(':id', $id, SQLITE3_TEXT);
+        $result = $get_stmt->execute();
+        $row = $result->fetchArray();
+        $result->finalize();
+        $get_stmt->close();
+
+        if ($row)
+        {
+            $this->logger->debug("Feedeliser::getPodcastImage($feed, $type, $id): found in cache");
+            // Found in cache but missing file
+            if (!is_file(Feedeliser::$public_dir . '/' . $row['file']))
+            {
+                $this->logger->warning("Feedeliser::getPodcastImage($feed, $type, $id): missing cached file {$row['file']}");
+
+                $delete_stmt = static::$feeds_cache->prepare('DELETE FROM file WHERE feed = :feed AND type = :type AND id = :id');
+                $delete_stmt->bindValue(':feed', $feed->getName(), SQLITE3_TEXT);
+                $delete_stmt->bindValue(':type', $type, SQLITE3_TEXT);
+                $delete_stmt->bindValue(':id', $id, SQLITE3_TEXT);
+                $delete_stmt->execute();
+                $delete_stmt->close();
+            }
+            else
+            {
+                $file = $row['file'];
+            }
+        }
+
+        // If not found in cache
+        if (!$file)
+        {
+            $this->logger->debug("Feedeliser::getPodcastImage($feed, $type, $id): not found in cache");
+
+            $callback = $type === 'feed' ? $feed->getPodcastImageCallback() : $feed->getPodcastImageItemCallback();
+            $original_url = call_user_func_array($callback, [$data]);
+            if ($original_url)
+            {
+                $image_content = file_get_contents($original_url);
+                if (false !== $image_content)
+                {
+                    $this->logger->debug("Feedeliser::getPodcastImage($feed, $type, $id): found at $original_url");
+                    $file = uniqid("{$this->name}_{$type}_") . '.' . pathinfo($original_url, PATHINFO_EXTENSION);
+                    file_put_contents(Feedeliser::$public_dir . '/' . $file, $image_content);
+
+                    $set_stmt = static::$feeds_cache->prepare(
+                        'INSERT INTO image (feed, type, id, file) ' .
+                        'VALUES (:feed, :type, :id, :file)'
+                    );
+                    $set_stmt->bindValue(':feed', $feed->getName(), SQLITE3_TEXT);
+                    $set_stmt->bindValue(':type', $ype, SQLITE3_TEXT);
+                    $set_stmt->bindValue(':id', $id, SQLITE3_TEXT);
+                    $set_stmt->bindValue(':file', $file, SQLITE3_TEXT);
+                    $set_stmt->execute();
+                    $set_stmt->close();
+                }
+                else
+                {
+                    $this->logger->debug("Feedeliser::getPodcastImage($feed, $type, $id): invalid URL $original_url");
+                }
+            }
+            else
+            {
+                $this->logger->debug("Feedeliser::getPodcastImage($feed, $type, $id): not found in content");
+            }
+        }
+
+        if ($file && is_file(Feedeliser::$public_dir . '/' . $file))
+        {
+            return 'http' . (isset($_SERVER['HTTPS']) ? 's' : '') . '://' . $_SERVER['SERVER_NAME'] . '/' . Feedeliser::$public_dir . '/' . $file;
+        }
+        else
+        {
+            $this->logger->debug("Feedeliser::getPodcastImage($feed, $type, $id): nothing found");
+            return '';
+        }
     }
 
     /**

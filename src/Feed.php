@@ -117,6 +117,18 @@ class Feed
     protected $podcast = false;
 
     /**
+     * For a podcast, callback returning the podcast image, only and required for podcast=true
+     * @var callable
+     */
+    protected $podcast_image_callback;
+
+    /**
+     * For a podcast, callback returning an item image, only and required for podcast=true
+     * @var callable
+     */
+    protected $podcast_item_image_callback;
+
+    /**
      * Time to keep an item in cache
      * @var int
      */
@@ -279,6 +291,26 @@ class Feed
         if (isset($config['podcast']))
         {
             $this->podcast = (bool) $config['podcast'];
+
+            if (!isset($config['podcast_image_callback']))
+            {
+                throw new \InvalidArgumentException("Feed::__construct($this): missing argument podcast_image_callback for podcast=true");
+            }
+            if (!is_callable($config['podcast_image_callback']))
+            {
+                throw new \InvalidArgumentException("Feed::__construct($this): invalid argument type podcast_image_callback");
+            }
+            $this->podcast_image_callback = $config['podcast_image_callback'];
+
+            if (!isset($config['podcast_item_image_callback']))
+            {
+                throw new \InvalidArgumentException("Feed::__construct($this): missing argument podcast_item_image_callback for podcast=true");
+            }
+            if (!is_callable($config['podcast_item_image_callback']))
+            {
+                throw new \InvalidArgumentException("Feed::__construct($this): invalid argument type podcast_item_image_callback");
+            }
+            $this->podcast_item_image_callback = $config['podcast_item_image_callback'];
         }
         
         // Argument: cache_limit
@@ -342,6 +374,26 @@ class Feed
     public function getPodcast(): bool
     {
         return $this->podcast;
+    }
+
+    /**
+     * Get the podcast image callback, if feed is a podcast
+     * 
+     * @return ?callable
+     */
+    public function getPodcastImageCallback(): ?callable
+    {
+        return $this->podcast_image_callback;
+    }
+
+    /**
+     * Get the podcast item image callback, if feed is a podcast
+     * 
+     * @return ?callable
+     */
+    public function getPodcastImageItemCallback(): ?callable
+    {
+        return $this->podcast_item_image_callback;
     }
 
     /**
@@ -541,6 +593,7 @@ class Feed
             if ($this->podcast)
             {
                 $xml['_attributes']['xmlns:itunes'] = 'http://www.itunes.com/dtds/podcast-1.0.dtd';
+                $xml['channel']['itunes:image'] = $this->feedeliser->getPodcastImage($this, 'feed', '', $doc, $doc_xpath);
             }
 
             foreach ($items as $item)
@@ -632,7 +685,7 @@ class Feed
                 {
                     $item_array['enclosure'] = $item_content['enclosure_url'];
                     $item_array['itunes:block'] = 'Yes';
-                    $item_array['itunes:image'] = $item_content['image_url'];
+                    $item_array['itunes:image'] = $this->feedeliser->getPodcastImage($this, 'entry', $link, $doc, $item_xpath); //TODO déplacer
                     $item_array['itunes:duration'] = $item_content['duration'];
                 }
 
