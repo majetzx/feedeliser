@@ -657,8 +657,7 @@ class Feed
                 }
                 
                 // Get the content from the page or from cache if available
-                // Also get the content in case of a podcast
-                if (!$original_title || !$original_content || $this->podcast)
+                if (!$original_title || !$original_content)
                 {
                     $item_content = $this->feedeliser->getItemContent($this, $link, $original_title, $original_content);
 
@@ -683,10 +682,13 @@ class Feed
                 // Additional tags for podcasts
                 if ($this->podcast)
                 {
-                    $item_array['enclosure'] = $item_content['enclosure_url'];
                     $item_array['itunes:block'] = 'Yes';
-                    $item_array['itunes:image'] = $this->feedeliser->getPodcastImage($this, 'entry', $link, $item_xpath, $item); //TODO déplacer
-                    $item_array['itunes:duration'] = $item_content['duration'];
+
+                    $item_array['itunes:image'] = $this->feedeliser->getPodcastImage($this, 'entry', $link, $item_xpath, $item);
+
+                    $podcast_content = $this->feedeliser->getPodcastItemContent($this); // todo other args
+                    $item_array['enclosure'] = $podcast_content['enclosure'];
+                    $item_array['itunes:duration'] = $podcast_content['duration'];
                 }
 
                 $xml['channel']['item'][] = $item_array;
