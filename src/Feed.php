@@ -686,7 +686,7 @@ class Feed
 
                     $item_array['itunes:image'] = $this->feedeliser->getPodcastImage($this, 'entry', $link, $item_xpath, $item);
 
-                    $podcast_content = $this->feedeliser->getPodcastItemContent($this); // todo other args
+                    $podcast_content = $this->feedeliser->getPodcastItemContent($this, $link); // todo other args
                     $item_array['enclosure'] = $podcast_content['enclosure'];
                     $item_array['itunes:duration'] = $podcast_content['duration'];
                 }
