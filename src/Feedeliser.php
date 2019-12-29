@@ -447,12 +447,12 @@ class Feedeliser
      * @param \majetzx\feedeliser\Feed $feed the Feed object
      * @param string $type image type, "feed" or "entry"
      * @param string $id empty for "feed" type, item URL for "entry" type
-     * @param \DOMDocument $doc
      * @param \DOMXpath $xpath
+     * @param ?\DOMNode $item
      * 
      * @return string
      */
-    public function getPodcastImage(Feed $feed, string $type, string $id, \DOMDocument $doc, \DOMXpath $xpath): string
+    public function getPodcastImage(Feed $feed, string $type, string $id, \DOMXpath $xpath, ?\DOMNode $item = null): string
     {
         $file = '';
 
@@ -504,8 +504,15 @@ class Feedeliser
         {
             $this->logger->debug("Feedeliser::getPodcastImage($feed, $type, $id): not found in cache");
 
-            $callback = $type === 'feed' ? $feed->getPodcastImageCallback() : $feed->getPodcastImageItemCallback();
-            $original_url = call_user_func_array($callback, [$doc, $xpath]);
+            if ($type === 'feed')
+            {
+                $original_url = call_user_func($feed->getPodcastImageCallback(), $xpath);
+            }
+            else
+            {
+                $original_url = call_user_func($feed->getPodcastImageItemCallback(), $xpath, $item);
+            }
+
             if ($original_url)
             {
                 $image_content = file_get_contents($original_url);

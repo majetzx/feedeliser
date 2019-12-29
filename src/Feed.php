@@ -593,7 +593,7 @@ class Feed
             if ($this->podcast)
             {
                 $xml['_attributes']['xmlns:itunes'] = 'http://www.itunes.com/dtds/podcast-1.0.dtd';
-                $xml['channel']['itunes:image'] = $this->feedeliser->getPodcastImage($this, 'feed', '', $doc, $doc_xpath);
+                $xml['channel']['itunes:image'] = $this->feedeliser->getPodcastImage($this, 'feed', '', $doc_xpath);
             }
 
             foreach ($items as $item)
@@ -685,7 +685,7 @@ class Feed
                 {
                     $item_array['enclosure'] = $item_content['enclosure_url'];
                     $item_array['itunes:block'] = 'Yes';
-                    $item_array['itunes:image'] = $this->feedeliser->getPodcastImage($this, 'entry', $link, $doc, $item_xpath); //TODO déplacer
+                    $item_array['itunes:image'] = $this->feedeliser->getPodcastImage($this, 'entry', $link, $item_xpath, $item); //TODO déplacer
                     $item_array['itunes:duration'] = $item_content['duration'];
                 }
 
