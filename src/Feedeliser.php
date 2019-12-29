@@ -505,7 +505,7 @@ class Feedeliser
             $this->logger->debug("Feedeliser::getPodcastImage($feed, $type, $id): not found in cache");
 
             $callback = $type === 'feed' ? $feed->getPodcastImageCallback() : $feed->getPodcastImageItemCallback();
-            $original_url = call_user_func_array($callback, [$data]);
+            $original_url = call_user_func_array($callback, [$doc, $xpath]);
             if ($original_url)
             {
                 $image_content = file_get_contents($original_url);
