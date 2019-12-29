@@ -513,11 +513,11 @@ class Feedeliser
 
             if ($type === 'feed')
             {
-                $original_url = call_user_func($feed->getPodcastImageCallback(), $xpath);
+                $original_url = call_user_func($feed->getPodcastImageCallback(), $this, $xpath);
             }
             else
             {
-                $original_url = call_user_func($feed->getPodcastImageItemCallback(), $xpath, $item, $id);
+                $original_url = call_user_func($feed->getPodcastImageItemCallback(), $this, $xpath, $item, $id);
             }
 
             if ($original_url)
