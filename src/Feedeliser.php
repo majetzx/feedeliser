@@ -517,7 +517,7 @@ class Feedeliser
             }
             else
             {
-                $original_url = call_user_func($feed->getPodcastImageItemCallback(), $xpath, $item);
+                $original_url = call_user_func($feed->getPodcastImageItemCallback(), $xpath, $item, $id);
             }
 
             if ($original_url)
