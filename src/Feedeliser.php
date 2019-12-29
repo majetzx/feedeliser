@@ -519,19 +519,26 @@ class Feedeliser
                 if (false !== $image_content)
                 {
                     $this->logger->debug("Feedeliser::getPodcastImage($feed, $type, $id): found at $original_url");
-                    $file = uniqid("{$this->name}_{$type}_") . '.' . pathinfo($original_url, PATHINFO_EXTENSION);
-                    file_put_contents(Feedeliser::$public_dir . '/' . $file, $image_content);
+                    $file = uniqid("{$feed->getName()}_{$type}_") . '.' . pathinfo($original_url, PATHINFO_EXTENSION);
+                    $write = file_put_contents(Feedeliser::$public_dir . '/' . $file, $image_content);
 
-                    $set_stmt = static::$feeds_cache->prepare(
-                        'INSERT INTO image (feed, type, id, file) ' .
-                        'VALUES (:feed, :type, :id, :file)'
-                    );
-                    $set_stmt->bindValue(':feed', $feed->getName(), SQLITE3_TEXT);
-                    $set_stmt->bindValue(':type', $ype, SQLITE3_TEXT);
-                    $set_stmt->bindValue(':id', $id, SQLITE3_TEXT);
-                    $set_stmt->bindValue(':file', $file, SQLITE3_TEXT);
-                    $set_stmt->execute();
-                    $set_stmt->close();
+                    if (false !== $write)
+                    {
+                        $set_stmt = static::$feeds_cache->prepare(
+                            'INSERT INTO image (feed, type, id, file) ' .
+                            'VALUES (:feed, :type, :id, :file)'
+                        );
+                        $set_stmt->bindValue(':feed', $feed->getName(), SQLITE3_TEXT);
+                        $set_stmt->bindValue(':type', $type, SQLITE3_TEXT);
+                        $set_stmt->bindValue(':id', $id, SQLITE3_TEXT);
+                        $set_stmt->bindValue(':file', $file, SQLITE3_TEXT);
+                        $set_stmt->execute();
+                        $set_stmt->close();
+                    }
+                    else
+                    {
+                        $this->logger->debug("Feedeliser::getPodcastImage($feed, $type, $id): write error to file $file");
+                    }
                 }
                 else
                 {
