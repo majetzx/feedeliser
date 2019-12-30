@@ -159,7 +159,7 @@ class Feedeliser
     {
         $ch = curl_init($url);
         // Feedeliser identifies itself as a real browser to bypass bot protections
-        curl_setopt($ch, CURLOPT_USERAGENT, 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/78.0.3904.97 Safari/537.36');
+        curl_setopt($ch, CURLOPT_USERAGENT, 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_2) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/79.0.3945.88 Safari/537.36');
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_ENCODING, ''); // empty string to accept all encodings
         curl_setopt($ch, CURLOPT_HTTPHEADER, array(
@@ -394,21 +394,22 @@ class Feedeliser
      * @param \majetzx\feedeliser\Feed $feed the Feed object
      * @param string $url the item URL
      * 
-     * @return array an array with keys "enclosure", "duration"
+     * @return array an array with keys "status", "enclosure", "length", "type", "duration"
      */
     public function getPodcastItemContent(Feed $feed, string $url): array
     {
-        $podcast_status = $podcast_enclosure = '';
-        $podcast_duration = 0;
+        $status = $enclosure = $type = '';
+        $length = $duration = 0;
+        $cache_available = true;
 
         $this->logger->debug("Feedeliser::getPodcastItemContent($feed, $url): start");
 
-        $podcast_get_stmt = static::$feeds_cache->prepare(
-            'SELECT enclosure, duration FROM podcast_entry WHERE feed = :feed AND url = :url'
+        $get_stmt = static::$feeds_cache->prepare(
+            'SELECT enclosure, length, type, duration FROM podcast_entry WHERE feed = :feed AND url = :url'
         );
 
         // Error using the cache
-        if (!$podcast_get_stmt)
+        if (!$get_stmt)
         {
             $this->logger->warning("Feedeliser::getPodcastItemContent($feed, $url): can't prepare cache statement");
             $cache_available = false;
@@ -416,35 +417,127 @@ class Feedeliser
         
         if ($cache_available)
         {
-            $podcast_get_stmt->bindValue(':feed', $feed->getName(), SQLITE3_TEXT);
-            $podcast_get_stmt->bindValue(':url', $url, SQLITE3_TEXT);
-            $podcast_result = $podcast_get_stmt->execute();
-            $podcast_row = $podcast_result->fetchArray();
-            $podcast_result->finalize();
-            $podcast_get_stmt->close();
+            $get_stmt->bindValue(':feed', $feed->getName(), SQLITE3_TEXT);
+            $get_stmt->bindValue(':url', $url, SQLITE3_TEXT);
+            $result = $get_stmt->execute();
+            $row = $result->fetchArray();
+            $result->finalize();
+            $get_stmt->close();
 
-            if ($podcast_row)
+            if ($row)
             {
                 $this->logger->debug("Feedeliser::getPodcastItemContent($feed, $url): found in cache");
 
-                $podcast_status = 'cache';
-                $podcast_enclosure = $podcast_row['enclosure'];
-                $podcast_duration = $podcast_row['duration'];
+                $status = 'cache';
+                $enclosure = $row['enclosure'];
+                $length = $row['length'];
+                $type = $row['type'];
+                $duration = $row['duration'];
             }
         }
 
-        // If not found in cache, get URL content
-        if ($podcast_status != 'cache')
+        // If not found in cache, get URL content with youtube-dl
+        if ($status != 'cache')
         {
             $this->logger->debug("Feedeliser::getPodcastItemContent($feed, $url): not found in cache");
 
-            //TODO
+            $enclosure = uniqid("{$feed->getName()}_enclosure_"); // no extension here
+            $output = $return_var = null;
+            exec('youtube-dl -o ' . escapeshellarg(Feedeliser::$public_dir . '/' . $enclosure) . ' ' . escapeshellarg($url), $output, $return_var);
+
+            if (0 === $return_var && is_file(Feedeliser::$public_dir . '/' . $enclosure))
+            {
+                $status = 'new';
+            }
+            else
+            {
+                $this->logger->warning(
+                    "Feedeliser::getPodcastItemContent($feed, $url): error downloading with youtube-dl",
+                    [
+                        'output' => $output,
+                        'return_var' => $return_var,
+                    ]
+                );
+                
+                // If feed has a fallback callback
+                $enclosure_callback = $feed->getPodcastItemEnclosureCallback();
+                if ($enclosure_callback)
+                {
+                    $this->logger->debug("Feedeliser::getPodcastItemContent($feed, $url): trying fallback callback");
+                    if (call_user_func($enclosure_callback, $this, $url, Feedeliser::$public_dir . '/' . $enclosure)
+                        && is_file(Feedeliser::$public_dir . '/' . $enclosure))
+                    {
+                        $status = 'new';
+                    }
+                    else
+                    {
+                        $this->logger->warning("Feedeliser::getPodcastItemContent($feed, $url): error downloading with callback");
+                    }
+                }
+            }
+            
+            // Saves in cache if downloaded
+            if ($status == 'new')
+            {
+                // Add extension
+                $extension = $this->guessFileExtension(Feedeliser::$public_dir . '/' . $enclosure);
+                if ($extension)
+                {
+                    rename(Feedeliser::$public_dir . '/' . $enclosure, Feedeliser::$public_dir . '/' . $enclosure . '.' . $extension);
+                    $enclosure .= ".$extension";
+                }
+                
+                $length = filesize(Feedeliser::$public_dir . '/' . $enclosure);
+                $type = mime_content_type(Feedeliser::$public_dir . '/' . $enclosure);
+                
+                // Duration
+                $output = $return_var = null;
+                exec('mediainfo --Output=JSON ' . escapeshellarg(Feedeliser::$public_dir . '/' . $enclosure), $output, $return_var);
+                if (0 === $return_var)
+                {
+                    $mediainfo = json_decode(implode('', $output));
+                    $duration = round($mediainfo->media->track[0]->Duration);
+                }
+                else
+                {
+                    $this->logger->warning(
+                        "Feedeliser::getPodcastItemContent($feed, $url): error getting enclosure duration",
+                        [
+                            'output' => $output,
+                            'return_var' => $return_var,
+                        ]
+                    );
+                }
+                
+                if ($cache_available)
+                {
+                    $set_stmt = static::$feeds_cache->prepare(
+                        'INSERT INTO podcast_entry (feed, url, enclosure, length, type, duration) ' .
+                        'VALUES (:feed, :url, :enclosure, :length, :type, :duration)'
+                    );
+                    $set_stmt->bindValue(':feed', $feed->getName(), SQLITE3_TEXT);
+                    $set_stmt->bindValue(':url', $url, SQLITE3_TEXT);
+                    $set_stmt->bindValue(':enclosure', $enclosure, SQLITE3_TEXT);
+                    $set_stmt->bindValue(':length', $length, SQLITE3_INTEGER);
+                    $set_stmt->bindValue(':type', $type, SQLITE3_TEXT);
+                    $set_stmt->bindValue(':duration', $duration, SQLITE3_INTEGER);
+                    $set_stmt->execute();
+                    $set_stmt->close();
+                }
+            }
+            else
+            {
+                $this->logger->error("Feedeliser::getPodcastItemContent($feed, $url): no enclosure found");
+                $status = 'error';
+            }
         }
 
         return [
-            'status' => $podcast_status,
-            'enclosure' => $podcast_enclosure,
-            'duration' => $podcast_duration,
+            'status' => $status,
+            'enclosure' => 'http' . (isset($_SERVER['HTTPS']) ? 's' : '') . '://' . $_SERVER['SERVER_NAME'] . '/' . Feedeliser::$public_dir . '/' . $enclosure,
+            'length' => $length,
+            'type' => $type,
+            'duration' => $duration,
         ];
     }
 
@@ -457,7 +550,7 @@ class Feedeliser
      * @param \DOMXpath $xpath XPath object to get the URL
      * @param ?\DOMNode $item item node for type "entry" only
      * 
-     * @return string
+     * @return string image full URL
      */
     public function getPodcastImage(Feed $feed, string $type, string $id, \DOMXpath $xpath, ?\DOMNode $item = null): string
     {
@@ -517,7 +610,7 @@ class Feedeliser
             }
             else
             {
-                $original_url = call_user_func($feed->getPodcastImageItemCallback(), $this, $xpath, $item, $id);
+                $original_url = call_user_func($feed->getPodcastItemImageCallback(), $this, $xpath, $item, $id);
             }
 
             if ($original_url)
@@ -526,11 +619,27 @@ class Feedeliser
                 if (false !== $image_content)
                 {
                     $this->logger->debug("Feedeliser::getPodcastImage($feed, $type, $id): found at $original_url");
-                    $file = uniqid("{$feed->getName()}_{$type}_") . '.' . pathinfo($original_url, PATHINFO_EXTENSION);
+                    $file = uniqid("{$feed->getName()}_{$type}_");
+                    $extension = pathinfo($original_url, PATHINFO_EXTENSION);
+                    if ($extension)
+                    {
+                        $file .= ".$extension";
+                    }
                     $write = file_put_contents(Feedeliser::$public_dir . '/' . $file, $image_content);
 
                     if (false !== $write)
                     {
+                        // Try to add a missing extension
+                        if (!$extension)
+                        {
+                            $extension = $this->guessFileExtension(Feedeliser::$public_dir . '/' . $file);
+                            if ($extension)
+                            {
+                                rename(Feedeliser::$public_dir . '/' . $file, Feedeliser::$public_dir . '/' . $file . '.' . $extension);
+                                $file .= ".$extension";
+                            }
+                        }
+                        
                         $set_stmt = static::$feeds_cache->prepare(
                             'INSERT INTO image (feed, type, id, file) ' .
                             'VALUES (:feed, :type, :id, :file)'
@@ -693,5 +802,29 @@ class Feedeliser
         );
         $xpath = new DOMXpath($document);
         return [$document, $xpath];
+    }
+    
+    /**
+     * Guess a file extension
+     *
+     * @param string $filepath the file to guess
+     *
+     * @return string the extension
+     */
+    public function guessFileExtension(string $filepath): string
+    {
+        $type = mime_content_type($filepath);
+        switch($type)
+        {
+            case 'image/jpeg': $extension = 'jpg'; break;
+            case 'image/png': $extension = 'png'; break;
+            case 'audio/mpeg': $extension = 'mp3'; break;
+            case 'audio/x-m4a': $extension = 'm4a'; break;
+            default:
+                $this->logger->warning("Feedeliser::guessFileExtension($filepath): unknown type $type");
+                $extension = '';
+                break;
+        }
+        return $extension;
     }
 }
