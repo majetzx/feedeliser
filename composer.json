@@ -3,9 +3,9 @@
 	"description": "Transform a web page into an RSS feed, or make a complete feed from a truncated one",
 	"type": "project",
 	"homepage": "https://github.com/majetzx/feedeliser",
-    "require": {
+	"require": {
 		"php": "^7.0",
-    	"ext-curl": "*",
+		"ext-curl": "*",
 		"ext-sqlite3": "*",
 		"ext-libxml": "*",
 		"ext-iconv": "*",
@@ -14,5 +14,5 @@
 		"psr/log": "^1.0",
 		"monolog/monolog": "^2.0-beta",
 		"spatie/array-to-xml": "^2.0"
-    }
+	}
 }
