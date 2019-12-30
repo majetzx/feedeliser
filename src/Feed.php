@@ -621,7 +621,11 @@ class Feed
             if ($this->podcast)
             {
                 $xml['_attributes']['xmlns:itunes'] = 'http://www.itunes.com/dtds/podcast-1.0.dtd';
-                $xml['channel']['itunes:image'] = $this->feedeliser->getPodcastImage($this, 'feed', '', $doc_xpath);
+                $image = $this->feedeliser->getPodcastImage($this, 'feed', '', $doc_xpath);
+                if ($image)
+                {
+                    $xml['channel']['itunes:image'] = $image;
+                }
                 $xml['channel']['itunes:block'] = 'Yes';
             }
 
@@ -711,17 +715,24 @@ class Feed
                 // Additional tags for podcasts
                 if ($this->podcast)
                 {
-                    $item_array['itunes:image'] = $this->feedeliser->getPodcastImage($this, 'entry', $link, $item_xpath, $item);
+                    $image = $this->feedeliser->getPodcastImage($this, 'entry', $link, $item_xpath, $item);
+                    if ($image)
+                    {
+                        $item_array['itunes:image'] = $image;
+                    }
 
                     $podcast_content = $this->feedeliser->getPodcastItemContent($this, $link);
-                    $item_array['enclosure'] = [
-                        '_attributes' => [
-                            'url' => $podcast_content['enclosure'],
-                            'length' => $podcast_content['length'],
-                            'type' => $podcast_content['type'],
-                        ],
-                    ];
-                    $item_array['itunes:duration'] = $podcast_content['duration'];
+                    if ($podcast_content['status'] != 'error')
+                    {
+                        $item_array['enclosure'] = [
+                            '_attributes' => [
+                                'url' => $podcast_content['enclosure'],
+                                'length' => $podcast_content['length'],
+                                'type' => $podcast_content['type'],
+                            ],
+                        ];
+                        $item_array['itunes:duration'] = $podcast_content['duration'];
+                    }
                 }
 
                 $xml['channel']['item'][] = $item_array;

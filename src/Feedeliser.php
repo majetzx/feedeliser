@@ -550,7 +550,7 @@ class Feedeliser
      * @param \DOMXpath $xpath XPath object to get the URL
      * @param ?\DOMNode $item item node for type "entry" only
      * 
-     * @return string image full URL
+     * @return string image full URL, or empty string in case of error
      */
     public function getPodcastImage(Feed $feed, string $type, string $id, \DOMXpath $xpath, ?\DOMNode $item = null): string
     {
