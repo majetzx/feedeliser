@@ -891,6 +891,7 @@ class Feedeliser
             case 'image/png': $extension = 'png'; break;
             case 'audio/mpeg': $extension = 'mp3'; break;
             case 'audio/x-m4a': $extension = 'm4a'; break;
+            case 'application/x-font-gdos': $extension = 'mp3'; break; // misdetection
             default:
                 $this->logger->warning("Feedeliser::guessFileExtension($filepath): unknown type $type");
                 $extension = '';
