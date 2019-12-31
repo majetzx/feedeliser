@@ -691,11 +691,82 @@ class Feedeliser
         $last_access = time() - $feed->getCacheLimit();
         $this->logger->debug("Feedeliser::clearCache($feed): delete cache entries last accessed before " . date('Y-m-d H:i:s', $last_access));
         
-        $cache_stmt = static::$feeds_cache->prepare('DELETE FROM feed_entry WHERE feed = :feed AND last_access < :datetime');
-        $cache_stmt->bindValue(':feed', $feed->getName(), SQLITE3_TEXT);
-        $cache_stmt->bindValue(':datetime', $last_access, SQLITE3_INTEGER);
-        $cache_stmt->execute();
-        $this->logger->debug("Feedeliser::clearCache($feed): " . static::$feeds_cache->changes() . " entries deleted");
+        // For a podcast, we need URLs to delete files alongside
+        if ($feed->getPodcast())
+        {
+            $this->logger->debug("Feedeliser::clearCache($feed): feed is a podcast");
+
+            $select_feed_entry_stmt = static::$feeds_cache->prepare('SELECT url FROM feed_entry WHERE feed = :feed AND last_access < :datetime');
+            $select_feed_entry_stmt->bindValue(':feed', $feed->getName(), SQLITE3_TEXT);
+            $select_feed_entry_stmt->bindValue(':datetime', $last_access, SQLITE3_INTEGER);
+            $result_select_feed_entry = $select_feed_entry_stmt->execute();
+            while ($feed_entry_row = $result_select_feed_entry->fetchArray())
+            {
+                // We should have only one enclosure and one image per podcast entry
+                // but we loop on results to be sure to delete everything
+
+                $select_podcast_entry_stmt = static::$feeds_cache->prepare('SELECT enclosure FROM podcast_entry WHERE feed = :feed AND url = :url');
+                $select_podcast_entry_stmt->bindValue(':feed', $feed->getName(), SQLITE3_TEXT);
+                $select_podcast_entry_stmt->bindValue(':url');
+                $result_select_podcast_entry = $select_podcast_entry_stmt->execute();
+                while ($podcast_entry_row = $result_select_image->fetchArray())
+                {
+                    if (is_file(Feedeliser::$public_dir . '/' . $podcast_entry_row['enclosure']))
+                    {
+                        unlink(Feedeliser::$public_dir . '/' . $podcast_entry_row['enclosure']);
+                    }
+                }
+                $result_select_podcast_entry->finalize();
+                $select_podcast_entry_stmt->close();
+
+                $delete_podcast_entry_stmt = static::$feeds_cache->prepare('DELETE FROM podcast_entry WHERE feed = :feed AND url = :url');
+                $delete_podcast_entry_stmt->bindValue(':feed', $feed->getName(), SQLITE3_TEXT);
+                $delete_podcast_entry_stmt->bindValue(':url', $feed_entry_row['url'], SQLITE3_TEXT);
+                $delete_podcast_entry_stmt->execute();
+                $nb_podcast_entry = static::$feeds_cache->changes();
+                $delete_podcast_entry_stmt->close();
+
+                $select_image_stmt = static::$feeds_cache->prepare('SELECT file FROM image WHERE feed = :feed AND type = "entry" AND id = :url');
+                $select_image_stmt->bindValue(':feed', $feed->getName(), SQLITE3_TEXT);
+                $select_image_stmt->bindValue(':url', $feed_entry_row['url'], SQLITE3_TEXT);
+                $result_select_image = $select_image_stmt->execute();
+                while ($image_row = $result_select_image->fetchArray())
+                {
+                    if (is_file(Feedeliser::$public_dir . '/' . $image_row['file']))
+                    {
+                        unlink(Feedeliser::$public_dir . '/' . $image_row['file']);
+                    }
+                }
+                $result_select_image->finalize();
+                $select_image_stmt->close();
+
+                $delete_image_stmt = static::$feeds_cache->prepare('DELETE FROM image WHERE feed = :feed AND type = "entry" AND id = :url');
+                $delete_image_stmt->bindValue(':feed', $feed->getName(), SQLITE3_TEXT);
+                $delete_image_stmt->bindValue(':url', $feed_entry_row['url'], SQLITE3_TEXT);
+                $delete_image_stmt->execute();
+                $nb_image = static::$feeds_cache->changes();
+                $delete_image_stmt->close();
+
+                $delete_feed_entry_stmt = static::$feeds_cache->prepare('DELETE FROM feed_entry WHERE feed = :feed AND url = :url');
+                $delete_feed_entry_stmt->bindValue(':feed', $feed->getName(), SQLITE3_TEXT);
+                $delete_feed_entry_stmt->bindValue(':url', $feed_entry_row['url'], SQLITE3_TEXT);
+                $delete_feed_entry_stmt->execute();
+                $delete_feed_entry_stmt->close();
+
+                $this->logger->debug("Feedeliser::clearCache($feed, {$feed_entry_row['url']}): $nb_podcast_entry podcast entries deleted, $nb_image images deleted");
+            }
+            $result_select_feed_entry->finalize();
+            $select_feed_entry_stmt->close();
+        }
+        else
+        {
+            $cache_stmt = static::$feeds_cache->prepare('DELETE FROM feed_entry WHERE feed = :feed AND last_access < :datetime');
+            $cache_stmt->bindValue(':feed', $feed->getName(), SQLITE3_TEXT);
+            $cache_stmt->bindValue(':datetime', $last_access, SQLITE3_INTEGER);
+            $cache_stmt->execute();
+            $cache_stmt->close();
+            $this->logger->debug("Feedeliser::clearCache($feed): " . static::$feeds_cache->changes() . " entries deleted");
+        }
 
         // Reclaim empty space
         static::$feeds_cache->exec('VACUUM');
