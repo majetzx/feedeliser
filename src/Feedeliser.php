@@ -488,7 +488,7 @@ class Feedeliser
                 }
                 
                 $length = filesize(Feedeliser::$public_dir . '/' . $enclosure);
-                $type = mime_content_type(Feedeliser::$public_dir . '/' . $enclosure);
+                $type = $this->getFileType(Feedeliser::$public_dir . '/' . $enclosure);
                 
                 // Duration
                 $output = $return_var = null;
@@ -876,6 +876,26 @@ class Feedeliser
     }
     
     /**
+     * Get a file MIME type, with misdetection correction
+     * 
+     * @see mime_content_type()
+     * 
+     * @param string $filepath the file to get the type
+     * 
+     * @return string the type
+     */
+    public function getFileType(string $filepath): string
+    {
+        $type = mime_content_type($filepath);
+        // Handle misdetections
+        if ($type == 'application/x-font-gdos') // MP3
+        {
+            $type = 'audio/mpeg';
+        }
+        return $type;
+    }
+
+    /**
      * Guess a file extension
      *
      * @param string $filepath the file to guess
@@ -884,14 +904,13 @@ class Feedeliser
      */
     public function guessFileExtension(string $filepath): string
     {
-        $type = mime_content_type($filepath);
+        $type = $this->getFileType($filepath);
         switch($type)
         {
             case 'image/jpeg': $extension = 'jpg'; break;
             case 'image/png': $extension = 'png'; break;
             case 'audio/mpeg': $extension = 'mp3'; break;
             case 'audio/x-m4a': $extension = 'm4a'; break;
-            case 'application/x-font-gdos': $extension = 'mp3'; break; // misdetection
             default:
                 $this->logger->warning("Feedeliser::guessFileExtension($filepath): unknown type $type");
                 $extension = '';
