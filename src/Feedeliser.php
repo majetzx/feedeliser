@@ -620,24 +620,74 @@ class Feedeliser
                 {
                     $this->logger->debug("Feedeliser::getPodcastImage($feed, $type, $id): found at $original_url");
                     $file = uniqid("{$feed->getName()}_{$type}_");
-                    $extension = pathinfo($original_url, PATHINFO_EXTENSION);
-                    if ($extension)
-                    {
-                        $file .= ".$extension";
-                    }
                     $write = file_put_contents(Feedeliser::$public_dir . '/' . $file, $image_content);
 
                     if (false !== $write)
                     {
-                        // Try to add a missing extension
-                        if (!$extension)
+                        // We need a square PNG and JPEG file
+                        $imagesize = getimagesize(Feedeliser::$public_dir . '/' . $file);
+                        if (is_array($imagesize))
                         {
-                            $extension = $this->guessFileExtension(Feedeliser::$public_dir . '/' . $file);
-                            if ($extension)
+                            $valid_image = true;
+                            switch ($imagesize[2])
+                            {
+                                case IMAGETYPE_PNG:
+                                    $extension = 'png';
+                                    $fn_imagecreatefrom = 'imagecreatefrompng';
+                                    $fn_imagecreateto = 'imagepng';
+                                    break;
+                                
+                                case IMAGETYPE_JPEG:
+                                    $extension = 'jpg';
+                                    $fn_imagecreatefrom = 'imagecreatefromjpeg';
+                                    $fn_imagecreateto = 'imagejpeg';
+                                    break;
+
+                                default:
+                                    $valid_image = false;
+                                    break;
+                            }
+
+                            if ($valid_image)
                             {
                                 rename(Feedeliser::$public_dir . '/' . $file, Feedeliser::$public_dir . '/' . $file . '.' . $extension);
                                 $file .= ".$extension";
+    
+                                // Resize image if necessary
+                                if ($imagesize[0] == $imagesize[1])
+                                {
+                                    // Minimum size: 1400 pixels
+                                    if ($imagesize[0] < 1400)
+                                    {
+                                        $new_image = imagecreatetruecolor(1400, 1400);
+                                        $old_image = $fn_imagecreatefrom(Feedeliser::$public_dir . '/' . $file);
+                                        imagecopyresampled($new_image, $old_image, 0, 0, 0, 0, 1400, 1400, $imagesize[0], $imagesize[1]);
+                                        imagedestroy($old_image);
+                                        $fn_imagecreateto($new_image, Feedeliser::$public_dir . '/' . $file, 100);
+                                    }
+                                    // Maximum size: 3000 pixels
+                                    else if ($imagesize[0] > 3000)
+                                    {
+                                        $new_image = imagecreatetruecolor(3000, 3000);
+                                        $old_image = $fn_imagecreatefrom(Feedeliser::$public_dir . '/' . $file);
+                                        imagecopyresampled($new_image, $old_image, 0, 0, 0, 0, 3000, 3000, $imagesize[0], $imagesize[1]);
+                                        imagedestroy($old_image);
+                                        $fn_imagecreateto($new_image, Feedeliser::$public_dir . '/' . $file, 100);
+                                    }
+                                }
+                                else
+                                {
+                                    $this->logger->warning("Feedeliser::getPodcastImage($feed, $type, $id): $file is not a square image");
+                                }
                             }
+                            else
+                            {
+                                $this->logger->warning("Feedeliser::getPodcastImage($feed, $type, $id): $file is not a valid image type ($imagesize[2])");
+                            }
+                        }
+                        else
+                        {
+                            $this->logger->warning("Feedeliser::getPodcastImage($feed, $type, $id): can't get size of image $file");
                         }
                         
                         $set_stmt = static::$feeds_cache->prepare(
