@@ -204,20 +204,22 @@ class Feedeliser
      * @param string $url the item URL
      * @param string $original_title the original item title
      * @param string $original_content the original item content
+     * @param int $original_time the original item time
      * 
-     * @return array an array with keys "status", "title", "content", and for podcast feeds keys "enclosure_url", "image_url", "duration"
+     * @return array an array with keys "status", "title", "content", "time", and for podcast feeds keys "enclosure_url", "image_url", "duration"
      */
-    public function getItemContent(Feed $feed, string $url, string $original_title, string $original_content): array
+    public function getItemContent(Feed $feed, string $url, string $original_title, string $original_content, int $original_time): array
     {
         $this->logger->debug("Feedeliser::getItemContent($feed, $url): start");
         
         $this->openCache();
         $status = $title = $content = '';
+        $time = 0;
         $cache_available = true;
 
         // Check if URL is already in cache
         $get_stmt = static::$feeds_cache->prepare(
-            'SELECT title, content FROM feed_entry WHERE feed = :feed AND url = :url'
+            'SELECT title, content, time FROM feed_entry WHERE feed = :feed AND url = :url'
         );
 
         // Error using the cache
@@ -242,6 +244,7 @@ class Feedeliser
                 $status = 'cache';
                 $title = $row['title'];
                 $content = $row['content'];
+                $time = $row['time'];
                 
                 $update_stmt = static::$feeds_cache->prepare(
                     'UPDATE feed_entry SET last_access = :last_access WHERE feed = :feed AND url = :url'
@@ -285,6 +288,7 @@ class Feedeliser
                         $readability->parse($url_content['http_body']);
                         $title = $readability->getTitle();
                         $content = $readability->getContent();
+                        // time not available in Readability
                     }
                     catch (ParseException $e)
                     {
@@ -312,7 +316,7 @@ class Feedeliser
                 $item_callback = $feed->getItemCallback();
                 if ($item_callback)
                 {
-                    call_user_func_array($item_callback, [&$title, &$content, $url_content['http_body']]);
+                    call_user_func_array($item_callback, [$url_content['http_body'], &$title, &$content, &$time]);
                 }
 
                 // Reuse original values if new ones are empty
@@ -323,6 +327,10 @@ class Feedeliser
                 if (!$content)
                 {
                     $content = $original_content;
+                }
+                if (!$time)
+                {
+                    $time = $original_time;
                 }
 
                 // Do some standard cleaning on the title and content
@@ -350,13 +358,14 @@ class Feedeliser
                 if ($status == 'new' && $cache_available)
                 {
                     $set_stmt = static::$feeds_cache->prepare(
-                        'INSERT INTO feed_entry (feed, url, content, title, last_access) ' .
-                        'VALUES (:feed, :url, :content, :title, :last_access)'
+                        'INSERT INTO feed_entry (feed, url, content, title, time, last_access) ' .
+                        'VALUES (:feed, :url, :content, :title, :time, :last_access)'
                     );
                     $set_stmt->bindValue(':feed', $feed->getName(), SQLITE3_TEXT);
                     $set_stmt->bindValue(':url', $url, SQLITE3_TEXT);
                     $set_stmt->bindValue(':content', $content, SQLITE3_TEXT);
                     $set_stmt->bindValue(':title', $title, SQLITE3_TEXT);
+                    $set_stmt->bindValue(':time', $time, SQLITE3_INTEGER);
                     $set_stmt->bindValue(':last_access', time(), SQLITE3_INTEGER);
                     $set_stmt->execute();
                     $set_stmt->close();
@@ -385,6 +394,7 @@ class Feedeliser
             'status' => $status,
             'title' => $title,
             'content' => $content,
+            'time' => $time,
         ];
     }
 

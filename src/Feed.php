@@ -651,7 +651,7 @@ class Feed
                 $item_num++;
                 $item_xpath = new DOMXpath($doc);
                 $original_title = $original_content = '';
-                $original_time = time();
+                $original_time = 0;
                 
                 // Item link: we just need the value, not the XML node
                 $link_node = $item_xpath->query($this->item_link_xpath, $item)->item(0);
@@ -707,9 +707,9 @@ class Feed
                 }
                 
                 // Get the content from the page or from cache if available
-                if (!$original_title || !$original_content)
+                if (!$original_title || !$original_content || !$original_time)
                 {
-                    $item_content = $this->feedeliser->getItemContent($this, $link, $original_title, $original_content);
+                    $item_content = $this->feedeliser->getItemContent($this, $link, $original_title, $original_content, $original_time);
 
                     if (!$original_title && $item_content['title'])
                     {
@@ -718,6 +718,10 @@ class Feed
                     if (!$original_content && $item_content['content'])
                     {
                         $original_content = $item_content['content'];
+                    }
+                    if (!$original_time && $item_content['time'])
+                    {
+                        $original_time = $item_content['time'];
                     }
                 }
 
