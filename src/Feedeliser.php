@@ -899,4 +899,66 @@ class Feedeliser
         }
         return $extension;
     }
+
+    /**
+     * Download a podcast enclosure with an alternative downloader
+     * Useful when youtube-dl fails to download
+     * 
+     * @param string $downloader_url download site URL
+     * @param string $form_submit_button download button text
+     * @param string $url_input URL input name
+     * @param string $result_download_type type of download link detection, "filter" for CSS selector, anything else for link text
+     * @param string $result_download_name content for the download link detection, CSS selector or link text
+     * @param string $enclosure_source_url enclosure URL
+     * @param string $enclosure_destination_file destination filepath
+     * 
+     * @return bool download successful or not
+     */
+    public static function altDownloadPodcastEnclosure(
+        string $downloader_url,
+        string $form_submit_button,
+        string $url_input,
+        string $result_download_type,
+        string $result_download_name,
+        string $enclosure_source_url,
+        string $enclosure_destination_file
+    ) {
+        $client = new \Goutte\Client();
+        $crawler = $client->request('GET', $downloader_url);
+        $form = $crawler->selectButton($form_submit_button)->form();
+        $crawler = $client->submit($form, array($url_input => $enclosure_source_url));
+        
+        if ($result_download_type == 'filter')
+        {
+            $link_crawler = $crawler->filter($result_download_name);
+        }
+        else
+        {
+            $link_crawler = $crawler->selectLink($result_download_name);
+        }
+        if (!$link_crawler || !$link_crawler->count())
+        {
+            return false;
+        }
+        
+        $link = $link_crawler->link();
+        if (!$link)
+        {
+            return false;
+        }
+        
+        $uri = $link->getUri();
+        if (!$uri)
+        {
+            return false;
+        }
+        
+        $src = fopen($uri, 'rb');
+        $dst = fopen($enclosure_destination_file, 'wb');
+        $bytes = stream_copy_to_stream($src, $dst);
+        fclose($src);
+        fclose($dst);
+        
+        return !!$bytes;
+    }
 }

@@ -13,6 +13,7 @@
 		"andreskrey/readability.php": "^2.0",
 		"psr/log": "^1.0",
 		"monolog/monolog": "^2.0-beta",
-		"spatie/array-to-xml": "^2.0"
+		"spatie/array-to-xml": "^2.0",
+		"fabpot/goutte": "^4.0"
 	}
 }
