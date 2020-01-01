@@ -587,11 +587,18 @@ class Feedeliser
                 $this->logger->warning("Feedeliser::getPodcastImage($feed, $type, $id): missing cached file {$row['file']}");
 
                 $delete_stmt = static::$feeds_cache->prepare('DELETE FROM file WHERE feed = :feed AND type = :type AND id = :id');
-                $delete_stmt->bindValue(':feed', $feed->getName(), SQLITE3_TEXT);
-                $delete_stmt->bindValue(':type', $type, SQLITE3_TEXT);
-                $delete_stmt->bindValue(':id', $id, SQLITE3_TEXT);
-                $delete_stmt->execute();
-                $delete_stmt->close();
+                if ($delete_stmt)
+                {
+                    $delete_stmt->bindValue(':feed', $feed->getName(), SQLITE3_TEXT);
+                    $delete_stmt->bindValue(':type', $type, SQLITE3_TEXT);
+                    $delete_stmt->bindValue(':id', $id, SQLITE3_TEXT);
+                    $delete_stmt->execute();
+                    $delete_stmt->close();
+                }
+                else
+                {
+                    $this->logger->warning("Feedeliser::getPodcastImage($feed, $type, $id): can't prepare delete statement");
+                }
             }
             else
             {
