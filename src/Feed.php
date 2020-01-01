@@ -621,11 +621,20 @@ class Feed
             if ($this->podcast)
             {
                 $xml['_attributes']['xmlns:itunes'] = 'http://www.itunes.com/dtds/podcast-1.0.dtd';
+                $xml['channel']['description'] = $this->title;
                 $image = $this->feedeliser->getPodcastImage($this, 'feed', '', $doc_xpath);
                 if ($image)
                 {
                     $xml['channel']['itunes:image'] = $image;
                 }
+                $xml['channel']['language'] = 'en';
+                $xml['channel']['itunes:category'] = 'Music';
+                $xml['channel']['itunes:author'] = 'Feedeliser';
+                $xml['channel']['itunes:owner'] = [
+                    'itunes:email' => 'feedeliser@feedeliser.feedeliser', // fake email
+                    'itunes:name' => 'Feedeliser',
+                ];
+                $xml['channel']['itunes:title'] = $this->title;
                 $xml['channel']['itunes:block'] = 'Yes';
             }
 
@@ -720,10 +729,11 @@ class Feed
                     {
                         $item_array['itunes:image'] = $image;
                     }
-
+                    $item_array['itunes:title'] = ['_cdata' => $original_title];
                     $podcast_content = $this->feedeliser->getPodcastItemContent($this, $link);
                     if ($podcast_content['status'] != 'error')
                     {
+                        $item_array['itunes:duration'] = $podcast_content['duration'];
                         $item_array['enclosure'] = [
                             '_attributes' => [
                                 'url' => $podcast_content['enclosure'],
@@ -731,7 +741,6 @@ class Feed
                                 'type' => $podcast_content['type'],
                             ],
                         ];
-                        $item_array['itunes:duration'] = $podcast_content['duration'];
                     }
                 }
 
