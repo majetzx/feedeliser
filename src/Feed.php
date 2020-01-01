@@ -525,6 +525,7 @@ class Feed
                 $item_xpath = new DOMXpath($doc);
                 Feedeliser::registerXpathNamespaces($item_xpath, $this->xml_namespaces);
                 $original_link = $original_title = $original_content = '';
+                $original_time = 0;
 
                 // Item link: we just need the value, not the XML node
                 $link_node = $item_xpath->query($this->item_link_xpath, $item)->item(0);
@@ -576,7 +577,7 @@ class Feed
                 }
 
                 // Get the item content, from cache if available
-                $item_content = $this->feedeliser->getItemContent($this, $link, $original_title, $original_content);
+                $item_content = $this->feedeliser->getItemContent($this, $link, $original_title, $original_content, $original_time);
 
                 // Replace title and content, with CDATA sections, only if different from original
                 if ($item_content['title'] !== $original_title)
