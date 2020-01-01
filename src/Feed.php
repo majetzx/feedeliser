@@ -625,10 +625,18 @@ class Feed
                 $image = $this->feedeliser->getPodcastImage($this, 'feed', '', $doc_xpath);
                 if ($image)
                 {
-                    $xml['channel']['itunes:image'] = $image;
+                    $xml['channel']['itunes:image'] = [
+                        '_attributes' => [
+                            'href' => $image,
+                        ],
+                    ];
                 }
                 $xml['channel']['language'] = 'en';
-                $xml['channel']['itunes:category'] = 'Music';
+                $xml['channel']['itunes:category'] = [
+                    '_attributes' => [
+                        'text' => 'Music',
+                    ],
+                ];
                 $xml['channel']['itunes:author'] = 'Feedeliser';
                 $xml['channel']['itunes:owner'] = [
                     'itunes:email' => 'feedeliser@feedeliser.feedeliser', // fake email
@@ -727,7 +735,11 @@ class Feed
                     $image = $this->feedeliser->getPodcastImage($this, 'entry', $link, $item_xpath, $item);
                     if ($image)
                     {
-                        $item_array['itunes:image'] = $image;
+                        $item_array['itunes:image'] = [
+                            '_attributes' => [
+                                'href' => $image,
+                            ],
+                        ];
                     }
                     $item_array['itunes:title'] = ['_cdata' => $original_title];
                     $podcast_content = $this->feedeliser->getPodcastItemContent($this, $link);
