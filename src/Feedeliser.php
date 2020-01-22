@@ -774,7 +774,7 @@ class Feedeliser
 
                 $select_podcast_entry_stmt = static::$feeds_cache->prepare('SELECT enclosure FROM podcast_entry WHERE feed = :feed AND url = :url');
                 $select_podcast_entry_stmt->bindValue(':feed', $feed->getName(), SQLITE3_TEXT);
-                $select_podcast_entry_stmt->bindValue(':url');
+                $select_podcast_entry_stmt->bindValue(':url', $feed_entry_row['url'], SQLITE3_TEXT);
                 $result_select_podcast_entry = $select_podcast_entry_stmt->execute();
                 while ($podcast_entry_row = $result_select_image->fetchArray())
                 {
