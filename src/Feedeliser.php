@@ -776,7 +776,7 @@ class Feedeliser
                 $select_podcast_entry_stmt->bindValue(':feed', $feed->getName(), SQLITE3_TEXT);
                 $select_podcast_entry_stmt->bindValue(':url', $feed_entry_row['url'], SQLITE3_TEXT);
                 $result_select_podcast_entry = $select_podcast_entry_stmt->execute();
-                while ($podcast_entry_row = $result_select_image->fetchArray())
+                while ($podcast_entry_row = $result_select_podcast_entry->fetchArray())
                 {
                     if (is_file(Feedeliser::$public_dir . '/' . $podcast_entry_row['enclosure']))
                     {
