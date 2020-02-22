@@ -580,12 +580,10 @@ class Feedeliser
      * @param \majetzx\feedeliser\Feed $feed the Feed object
      * @param string $type image type, "feed" or "entry"
      * @param string $id empty for "feed" type, item URL for "entry" type
-     * @param \DOMXpath $xpath XPath object to get the URL
-     * @param ?\DOMNode $item item node for type "entry" only
      * 
      * @return string image full URL, or empty string in case of error
      */
-    public function getPodcastImage(Feed $feed, string $type, string $id, \DOMXpath $xpath, ?\DOMNode $item = null): string
+    public function getPodcastImage(Feed $feed, string $type, string $id): string
     {
         $file = '';
 
@@ -646,11 +644,11 @@ class Feedeliser
 
             if ($type === 'feed')
             {
-                $original_url = call_user_func($feed->getPodcastImageCallback(), $this, $xpath);
+                $original_url = $feed->callPodcastImageCallback();
             }
             else
             {
-                $original_url = call_user_func($feed->getPodcastItemImageCallback(), $this, $xpath, $item, $id);
+                $original_url = $feed->callPodcastItemImageCallback($id);
             }
 
             if ($original_url)
@@ -870,6 +868,24 @@ class Feedeliser
 
         // Reclaim empty space
         static::$feeds_cache->exec('VACUUM');
+    }
+
+    /**
+     * Clean a link
+     * 
+     * @param string $link a URL to clean
+     * 
+     * @return string cleaned URL
+     */
+    public static function cleanLink(string $link): string
+    {
+        // Some links start with "http://https://"
+        $matches = array();
+        if (preg_match('/^http:\/\/(https:\/\/.*)$/', $link, $matches)) {
+            $link = $matches[1];
+        }
+
+        return $link;
     }
 
     /**
