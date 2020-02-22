@@ -23,6 +23,25 @@ class Feedeliser
      * @var string
      */
     const XML_PROLOGUE = '<?xml version="1.0" encoding="utf-8"?>';
+    
+    /**
+     * Minimum size for the podcast images
+     * @var int
+     */
+    const PODCAST_IMAGE_MIN_SIZE = 1400;
+    
+    /**
+     * Maximum size for the podcast images
+     * @var int
+     */
+    const PODCAST_IMAGE_MAX_SIZE = 3000;
+
+    /**
+     * User-Agent string, used by cURL and alternative podcast downloader
+     * Feedeliser identifies itself as a real browser to bypass bot protections
+     * @var string
+     */
+    const FEEDELISER_USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_2) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.116 Safari/537.36';
 
     /**
      * Feeds configurations directory
@@ -152,14 +171,14 @@ class Feedeliser
      * Get content from a URL
      * 
      * @param string $url URL
+     * @param ?string $output_file a file to save the output to
      * 
      * @return array an array with the keys "http_body" and "http_code"
      */
-    public function getUrlContent(string $url): array
+    public function getUrlContent(string $url, string $output_file = null): array
     {
         $ch = curl_init($url);
-        // Feedeliser identifies itself as a real browser to bypass bot protections
-        curl_setopt($ch, CURLOPT_USERAGENT, 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_2) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/79.0.3945.88 Safari/537.36');
+        curl_setopt($ch, CURLOPT_USERAGENT, static::FEEDELISER_USER_AGENT);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_ENCODING, ''); // empty string to accept all encodings
         curl_setopt($ch, CURLOPT_HTTPHEADER, array(
@@ -180,9 +199,17 @@ class Feedeliser
             curl_setopt($ch, CURLOPT_INTERFACE, static::$curl_ip_addresses[$key]);
             $this->logger->debug("Feedeliser::getUrlContent($url): use <" . static::$curl_ip_addresses[$key] . "> outbound IP address");
         }
+        // Output file
+        if ($output_file) {
+            $ofp = fopen($output_file, 'w');
+            curl_setopt($ch, CURLOPT_FILE, $ofp);
+        }
         $http_body = curl_exec($ch);
         $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         curl_close($ch);
+        if ($output_file) {
+            fclose($ofp);
+        }
         
         $this->logger->debug("Feedeliser::getUrlContent($url): $http_code");
 
@@ -348,9 +375,7 @@ class Feedeliser
                 // If title and content are empty, it's a problem
                 if (!$title && !$content)
                 {
-                    $this->logger->warning(
-                        "Feedeliser::getItemContent($feed, $url): empty title and content for URL"
-                    );
+                    $this->logger->warning("Feedeliser::getItemContent($feed, $url): empty title and content for URL");
                     $status = 'error';
                 }
                 
@@ -373,9 +398,7 @@ class Feedeliser
             }
             else
             {
-                $this->logger->warning(
-                    "Feedeliser::getItemContent($feed, $url): can't get content from URL, invalid HTTP code {$url_content['http_code']}"
-                );
+                $this->logger->warning("Feedeliser::getItemContent($feed, $url): can't get content from URL, invalid HTTP code {$url_content['http_code']}");
                 $status = 'error';
                 if ($url_content['http_code'] == 403)
                 {
@@ -453,9 +476,9 @@ class Feedeliser
 
             $enclosure = uniqid("{$feed->getName()}_enclosure_"); // no extension here
             $output = $return_var = null;
-            exec('youtube-dl -o ' . escapeshellarg(Feedeliser::$public_dir . '/' . $enclosure) . ' ' . escapeshellarg($url), $output, $return_var);
+            exec('youtube-dl -o ' . escapeshellarg(static::$public_dir . '/' . $enclosure) . ' ' . escapeshellarg($url), $output, $return_var);
 
-            if (0 === $return_var && is_file(Feedeliser::$public_dir . '/' . $enclosure))
+            if (0 === $return_var && is_file(static::$public_dir . '/' . $enclosure))
             {
                 $status = 'new';
             }
@@ -474,8 +497,8 @@ class Feedeliser
                 if ($enclosure_callback)
                 {
                     $this->logger->debug("Feedeliser::getPodcastItemContent($feed, $url): trying fallback callback");
-                    if (call_user_func($enclosure_callback, $this, $url, Feedeliser::$public_dir . '/' . $enclosure)
-                        && is_file(Feedeliser::$public_dir . '/' . $enclosure))
+                    if (call_user_func($enclosure_callback, $this, $url, static::$public_dir . '/' . $enclosure)
+                        && is_file(static::$public_dir . '/' . $enclosure))
                     {
                         $status = 'new';
                     }
@@ -490,19 +513,19 @@ class Feedeliser
             if ($status == 'new')
             {
                 // Add extension
-                $extension = $this->guessFileExtension(Feedeliser::$public_dir . '/' . $enclosure);
+                $extension = $this->guessFileExtension(static::$public_dir . '/' . $enclosure);
                 if ($extension)
                 {
-                    rename(Feedeliser::$public_dir . '/' . $enclosure, Feedeliser::$public_dir . '/' . $enclosure . '.' . $extension);
+                    rename(static::$public_dir . '/' . $enclosure, static::$public_dir . '/' . $enclosure . '.' . $extension);
                     $enclosure .= ".$extension";
                 }
                 
-                $length = filesize(Feedeliser::$public_dir . '/' . $enclosure);
-                $type = $this->getFileType(Feedeliser::$public_dir . '/' . $enclosure);
+                $length = filesize(static::$public_dir . '/' . $enclosure);
+                $type = $this->getFileType(static::$public_dir . '/' . $enclosure);
                 
                 // Duration
                 $output = $return_var = null;
-                exec('mediainfo --Output=JSON ' . escapeshellarg(Feedeliser::$public_dir . '/' . $enclosure), $output, $return_var);
+                exec('mediainfo --Output=JSON ' . escapeshellarg(static::$public_dir . '/' . $enclosure), $output, $return_var);
                 if (0 === $return_var)
                 {
                     $mediainfo = json_decode(implode('', $output));
@@ -544,7 +567,7 @@ class Feedeliser
 
         return [
             'status' => $status,
-            'enclosure' => 'http' . (isset($_SERVER['HTTPS']) ? 's' : '') . '://' . $_SERVER['SERVER_NAME'] . '/' . Feedeliser::$public_dir . '/' . $enclosure,
+            'enclosure' => 'http' . (isset($_SERVER['HTTPS']) ? 's' : '') . '://' . $_SERVER['SERVER_NAME'] . '/' . static::$public_dir . '/' . $enclosure,
             'length' => $length,
             'type' => $type,
             'duration' => $duration,
@@ -592,11 +615,11 @@ class Feedeliser
         {
             $this->logger->debug("Feedeliser::getPodcastImage($feed, $type, $id): found in cache at {$row['file']}");
             // Found in cache but missing file
-            if (!is_file(Feedeliser::$public_dir . '/' . $row['file']))
+            if (!is_file(static::$public_dir . '/' . $row['file']))
             {
                 $this->logger->warning("Feedeliser::getPodcastImage($feed, $type, $id): missing cached file {$row['file']}");
 
-                $delete_stmt = static::$feeds_cache->prepare('DELETE FROM file WHERE feed = :feed AND type = :type AND id = :id');
+                $delete_stmt = static::$feeds_cache->prepare('DELETE FROM image WHERE feed = :feed AND type = :type AND id = :id');
                 if ($delete_stmt)
                 {
                     $delete_stmt->bindValue(':feed', $feed->getName(), SQLITE3_TEXT);
@@ -632,17 +655,17 @@ class Feedeliser
 
             if ($original_url)
             {
-                $image_content = file_get_contents($original_url);
-                if (false !== $image_content)
+                $image_response = $this->getUrlContent($original_url); // no direct write to file, in case resize fails
+                if ($image_response['http_code'] == 200)
                 {
                     $this->logger->debug("Feedeliser::getPodcastImage($feed, $type, $id): found at $original_url");
                     $file = uniqid("{$feed->getName()}_{$type}_");
-                    $write = file_put_contents(Feedeliser::$public_dir . '/' . $file, $image_content);
+                    $write = file_put_contents(static::$public_dir . '/' . $file, $image_response['http_body']);
 
-                    if (false !== $write)
+                    if (false !== $write && 0 < $write)
                     {
                         // We need a square PNG and JPEG file
-                        $imagesize = getimagesize(Feedeliser::$public_dir . '/' . $file);
+                        $imagesize = getimagesize(static::$public_dir . '/' . $file);
                         if (is_array($imagesize))
                         {
                             $valid_image = true;
@@ -652,12 +675,14 @@ class Feedeliser
                                     $extension = 'png';
                                     $fn_imagecreatefrom = 'imagecreatefrompng';
                                     $fn_imagecreateto = 'imagepng';
+                                    $quality = 0;
                                     break;
                                 
                                 case IMAGETYPE_JPEG:
                                     $extension = 'jpg';
                                     $fn_imagecreatefrom = 'imagecreatefromjpeg';
                                     $fn_imagecreateto = 'imagejpeg';
+                                    $quality = 100;
                                     break;
 
                                 default:
@@ -667,29 +692,37 @@ class Feedeliser
 
                             if ($valid_image)
                             {
-                                rename(Feedeliser::$public_dir . '/' . $file, Feedeliser::$public_dir . '/' . $file . '.' . $extension);
+                                rename(static::$public_dir . '/' . $file, static::$public_dir . '/' . $file . '.' . $extension);
                                 $file .= ".$extension";
     
-                                // Resize image if necessary
+                                // Resize image if square and necessary
                                 if ($imagesize[0] == $imagesize[1])
                                 {
-                                    // Minimum size: 1400 pixels
-                                    if ($imagesize[0] < 1400)
+                                    if ($imagesize[0] < static::PODCAST_IMAGE_MIN_SIZE || $imagesize[0] > static::PODCAST_IMAGE_MAX_SIZE)
                                     {
-                                        $new_image = imagecreatetruecolor(1400, 1400);
-                                        $old_image = $fn_imagecreatefrom(Feedeliser::$public_dir . '/' . $file);
-                                        imagecopyresampled($new_image, $old_image, 0, 0, 0, 0, 1400, 1400, $imagesize[0], $imagesize[1]);
+                                        // Minimum size
+                                        if ($imagesize[0] < static::PODCAST_IMAGE_MIN_SIZE)
+                                        {
+                                            $new_size = static::PODCAST_IMAGE_MIN_SIZE;
+                                        }
+                                        // Maximum size
+                                        else
+                                        {
+                                            $new_size = static::PODCAST_IMAGE_MAX_SIZE;
+                                        }
+                                        
+                                        $new_image = imagecreatetruecolor($new_size, $new_size);
+                                        $old_image = $fn_imagecreatefrom(static::$public_dir . '/' . $file);
+                                        imagecopyresampled($new_image, $old_image, 0, 0, 0, 0, $new_size, $new_size, $imagesize[0], $imagesize[1]);
                                         imagedestroy($old_image);
-                                        $fn_imagecreateto($new_image, Feedeliser::$public_dir . '/' . $file, 100);
-                                    }
-                                    // Maximum size: 3000 pixels
-                                    else if ($imagesize[0] > 3000)
-                                    {
-                                        $new_image = imagecreatetruecolor(3000, 3000);
-                                        $old_image = $fn_imagecreatefrom(Feedeliser::$public_dir . '/' . $file);
-                                        imagecopyresampled($new_image, $old_image, 0, 0, 0, 0, 3000, 3000, $imagesize[0], $imagesize[1]);
-                                        imagedestroy($old_image);
-                                        $fn_imagecreateto($new_image, Feedeliser::$public_dir . '/' . $file, 100);
+                                        $resize_return = $fn_imagecreateto($new_image, static::$public_dir . '/' . $file, $quality);
+                                        
+                                        // Per PHP documentation, we can get true even if it fails
+                                        if (!$resize_return || !filesize(static::$public_dir . '/' . $file))
+                                        {
+                                            $this->logger->warning("Feedeliser::getPodcastImage($feed, $type, $id): error resizing image, keeping original image");
+                                            file_put_contents(static::$public_dir . '/' . $file, $image_response['http_body']);
+                                        }
                                     }
                                 }
                                 else
@@ -734,9 +767,9 @@ class Feedeliser
             }
         }
 
-        if ($file && is_file(Feedeliser::$public_dir . '/' . $file))
+        if ($file && is_file(static::$public_dir . '/' . $file))
         {
-            return 'http' . (isset($_SERVER['HTTPS']) ? 's' : '') . '://' . $_SERVER['SERVER_NAME'] . '/' . Feedeliser::$public_dir . '/' . $file;
+            return 'http' . (isset($_SERVER['HTTPS']) ? 's' : '') . '://' . $_SERVER['SERVER_NAME'] . '/' . static::$public_dir . '/' . $file;
         }
         else
         {
@@ -778,9 +811,9 @@ class Feedeliser
                 $result_select_podcast_entry = $select_podcast_entry_stmt->execute();
                 while ($podcast_entry_row = $result_select_podcast_entry->fetchArray())
                 {
-                    if (is_file(Feedeliser::$public_dir . '/' . $podcast_entry_row['enclosure']))
+                    if (is_file(static::$public_dir . '/' . $podcast_entry_row['enclosure']))
                     {
-                        unlink(Feedeliser::$public_dir . '/' . $podcast_entry_row['enclosure']);
+                        unlink(static::$public_dir . '/' . $podcast_entry_row['enclosure']);
                     }
                 }
                 $result_select_podcast_entry->finalize();
@@ -799,9 +832,9 @@ class Feedeliser
                 $result_select_image = $select_image_stmt->execute();
                 while ($image_row = $result_select_image->fetchArray())
                 {
-                    if (is_file(Feedeliser::$public_dir . '/' . $image_row['file']))
+                    if (is_file(static::$public_dir . '/' . $image_row['file']))
                     {
-                        unlink(Feedeliser::$public_dir . '/' . $image_row['file']);
+                        unlink(static::$public_dir . '/' . $image_row['file']);
                     }
                 }
                 $result_select_image->finalize();
@@ -1000,7 +1033,7 @@ class Feedeliser
      * 
      * @return bool download successful or not
      */
-    public static function altDownloadPodcastEnclosure(
+    public function altDownloadPodcastEnclosure(
         string $downloader_url,
         string $form_submit_button,
         string $url_input,
@@ -1009,7 +1042,11 @@ class Feedeliser
         string $enclosure_source_url,
         string $enclosure_destination_file
     ) {
-        $client = new \Goutte\Client();
+        $client = \Symfony\Component\HttpClient\HttpClient::create([
+            'headers' => [
+                'User-Agent' => static::FEEDELISER_USER_AGENT,
+            ],
+        ]);
         $crawler = $client->request('GET', $downloader_url);
         $form = $crawler->selectButton($form_submit_button)->form();
         $crawler = $client->submit($form, array($url_input => $enclosure_source_url));
@@ -1024,27 +1061,33 @@ class Feedeliser
         }
         if (!$link_crawler || !$link_crawler->count())
         {
+            $this->logger->warning("Feedeliser::altDownloadPodcastEnclosure($enclosure_source_url, $enclosure_destination_file): error getting link crawler", [
+                'src' => (string) $client->getResponse(), // temporary
+            ]);
             return false;
         }
         
         $link = $link_crawler->link();
         if (!$link)
         {
+            $this->logger->warning("Feedeliser::altDownloadPodcastEnclosure($enclosure_source_url, $enclosure_destination_file): error getting link from crawler");
             return false;
         }
         
         $uri = $link->getUri();
-        if (!$uri)
+        if (!$uri || !filter_var($uri, FILTER_VALIDATE_URL))
         {
+            $this->logger->warning("Feedeliser::altDownloadPodcastEnclosure($enclosure_source_url, $enclosure_destination_file): error getting link URL");
             return false;
         }
         
-        $src = fopen($uri, 'rb');
-        $dst = fopen($enclosure_destination_file, 'wb');
-        $bytes = stream_copy_to_stream($src, $dst);
-        fclose($src);
-        fclose($dst);
+        $http_content = $this->getUrlContent($uri, $enclosure_destination_file);
+        if ($http_content['http_code'] != 200)
+        {
+            $this->logger->warning("Feedeliser::altDownloadPodcastEnclosure($enclosure_source_url, $enclosure_destination_file): error downloading source URL (HTTP code {$http_content['http_code']})");
+            return false;
+        }
         
-        return !!$bytes;
+        return true;
     }
 }
