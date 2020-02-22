@@ -6,6 +6,8 @@ namespace majetzx\feedeliser;
 use Psr\Log\LoggerInterface;
 use DOMDocument, DOMNode, DOMNodeList, DOMXPath, SQLite3;
 use andreskrey\Readability\{Readability, Configuration, ParseException};
+use Goutte\Client;
+use Symfony\Component\HttpClient\HttpClient;
 
 /**
  * Main class
@@ -1058,11 +1060,11 @@ class Feedeliser
         string $enclosure_source_url,
         string $enclosure_destination_file
     ) {
-        $client = \Symfony\Component\HttpClient\HttpClient::create([
+        $client = new Client(HttpClient::create([
             'headers' => [
                 'User-Agent' => static::FEEDELISER_USER_AGENT,
             ],
-        ]);
+        ]));
         $crawler = $client->request('GET', $downloader_url);
         $form = $crawler->selectButton($form_submit_button)->form();
         $crawler = $client->submit($form, array($url_input => $enclosure_source_url));
