@@ -20,6 +20,8 @@ Create feeds configuration files in the `feeds` directory, as described below.
 
 Configure the web server, a dedicated domain with HTTP Authentication is prefered.
 
+For podcast feeds, [youtube-dl](https://ytdl-org.github.io/youtube-dl/index.html) and [mediainfo](https://mediaarea.net/en/MediaInfo) are required, they must be in the `PATH`.
+
 ## SQLite cache
 
 Create a file named `feeds.sqlite` in the `datas` directory.
