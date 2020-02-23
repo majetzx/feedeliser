@@ -170,16 +170,18 @@ class Feedeliser
     }
 
     /**
-     * Get content from a URL
+     * Perform a network call
      * 
      * @param string $url URL
+     * @param ?array $post_content the POST content
      * @param ?string $output_file a file to save the output to
      * 
      * @return array an array with the keys "http_body" and "http_code"
      */
-    public function getUrlContent(string $url, string $output_file = null): array
+    protected function internalCurlContent(string $url, array $post_content = null, string $output_file = null)
     {
         $ch = curl_init($url);
+
         curl_setopt($ch, CURLOPT_USERAGENT, static::FEEDELISER_USER_AGENT);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_ENCODING, ''); // empty string to accept all encodings
@@ -190,10 +192,12 @@ class Feedeliser
             'Upgrade-Insecure-Requests: 1',
             'Connection: keep-alive',
         ));
+        
         // Storing cookies set by websites decreases the probability of being blocked
         curl_setopt($ch, CURLOPT_COOKIEFILE, static::$curl_cookie_jar);
         curl_setopt($ch, CURLOPT_COOKIEJAR, static::$curl_cookie_jar);
         curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+        
         // Outbound IP address
         if (static::$curl_use_ip_address)
         {
@@ -201,11 +205,21 @@ class Feedeliser
             curl_setopt($ch, CURLOPT_INTERFACE, static::$curl_ip_addresses[$key]);
             $this->logger->debug("Feedeliser::getUrlContent($url): use <" . static::$curl_ip_addresses[$key] . "> outbound IP address");
         }
+
+        // POST content
+        if ($post_content !== null)
+        {
+            curl_setopt($ch, CURLOPT_POST, true);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, $post_content);
+        }
+
         // Output file
-        if ($output_file) {
+        if ($output_file)
+        {
             $ofp = fopen($output_file, 'w');
             curl_setopt($ch, CURLOPT_FILE, $ofp);
         }
+        
         $http_body = curl_exec($ch);
         $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         curl_close($ch);
@@ -218,7 +232,33 @@ class Feedeliser
         return [
             'http_body' => $http_body,
             'http_code' => $http_code,
-        ];    
+        ];
+    }
+
+    /**
+     * Get content from a URL
+     * 
+     * @param string $url URL
+     * @param ?string $output_file a file to save the output to
+     * 
+     * @return array an array with the keys "http_body" and "http_code"
+     */
+    public function getUrlContent(string $url, string $output_file = null): array
+    {
+        return $this->internalCurlContent($url, null, $output_file);
+    }
+
+    /**
+     * Post content to a URL
+     * 
+     * @param string $url URL
+     * @param ?array $content the POST content
+     * 
+     * @return array an array with the keys "http_body" and "http_code"
+     */
+    public function postUrlContent(string $url, array $content = null): array
+    {
+        return $this->internalCurlContent($url, $content, null);
     }
 
     /**
@@ -234,10 +274,18 @@ class Feedeliser
      * @param string $original_title the original item title
      * @param string $original_content the original item content
      * @param int $original_time the original item time
+     * @param string $json_url the JSON item URL
      * 
      * @return array an array with keys "status", "title", "content", "time", and for podcast feeds keys "enclosure_url", "image_url", "duration"
      */
-    public function getItemContent(Feed $feed, string $url, string $original_title, string $original_content, int $original_time): array
+    public function getItemContent(
+        Feed $feed,
+        string $url,
+        string $original_title,
+        string $original_content,
+        int $original_time,
+        string $json_url = null
+    ): array
     {
         $this->logger->debug("Feedeliser::getItemContent($feed, $url): start");
         
@@ -294,58 +342,77 @@ class Feedeliser
         {
             $this->logger->debug("Feedeliser::getItemContent($feed, $url): not found in cache");
 
-            $url_content = $this->getUrlContent($url);
+            $url_content = $this->getUrlContent($json_url ?? $url);
             if ($url_content['http_code'] == 200)
             {
                 $status = 'new';
 
-                // Change encoding if it's not in the target encoding
-                $encoding = mb_detect_encoding($url_content['http_body']);
-                $this->logger->debug("Feedeliser::getItemContent($feed, $url): detected encoding \"$encoding\"");
-                if ($encoding !== false && $encoding != Feed::TARGET_ENCODING)
+                if ($feed->getSourceType() != Feed::SOURCE_JSON)
                 {
-                    $this->logger->debug("Feedeliser::getItemContent($feed, $url): convert from encoding \"$encoding\"");
-                    $url_content['http_body'] = iconv($encoding, Feed::TARGET_ENCODING, $url_content['http_body']);
-                }
-
-                // Clean the content with Readability
-                if ($feed->getReadability())
-                {
-                    $readability = new Readability(new Configuration());
-                    try
+                    // Change encoding if it's not in the target encoding
+                    $encoding = mb_detect_encoding($url_content['http_body']);
+                    $this->logger->debug("Feedeliser::getItemContent($feed, $url): detected encoding \"$encoding\"");
+                    if ($encoding !== false && $encoding != Feed::TARGET_ENCODING)
                     {
-                        $readability->parse($url_content['http_body']);
-                        $title = $readability->getTitle();
-                        $content = $readability->getContent();
-                        // time not available in Readability
+                        $this->logger->debug("Feedeliser::getItemContent($feed, $url): convert from encoding \"$encoding\"");
+                        $url_content['http_body'] = iconv($encoding, Feed::TARGET_ENCODING, $url_content['http_body']);
                     }
-                    catch (ParseException $e)
+
+                    // Clean the content with Readability
+                    if ($feed->getReadability())
                     {
-                        $this->logger->warning(
-                            "Feedeliser::getItemContent($feed, $url): Readability exception while parsing content from URL",
-                            [
-                                'exception' => $e,
-                            ]
-                        );
-                        $status = 'error';
+                        $readability = new Readability(new Configuration());
+                        try
+                        {
+                            $readability->parse($url_content['http_body']);
+                            $title = $readability->getTitle();
+                            $content = $readability->getContent();
+                            // time not available in Readability
+                        }
+                        catch (ParseException $e)
+                        {
+                            $this->logger->warning(
+                                "Feedeliser::getItemContent($feed, $url): Readability exception while parsing content from URL",
+                                [
+                                    'exception' => $e,
+                                ]
+                            );
+                            $status = 'error';
+                        }
+                    }
+
+                    // Reuse original values if new ones are empty
+                    if (!$title)
+                    {
+                        $title = $original_title;
+                    }
+                    if (!$content)
+                    {
+                        $content = $original_content;
+                    }
+
+                    // A callback on the content
+                    $item_callback = $feed->getItemCallback();
+                    if ($item_callback)
+                    {
+                        call_user_func_array($item_callback, [$url_content['http_body'], &$title, &$content, &$time]);
                     }
                 }
-
-                // Reuse original values if new ones are empty
-                if (!$title)
+                else
                 {
-                    $title = $original_title;
-                }
-                if (!$content)
-                {
-                    $content = $original_content;
-                }
-
-                // A callback on the content
-                $item_callback = $feed->getItemCallback();
-                if ($item_callback)
-                {
-                    call_user_func_array($item_callback, [$url_content['http_body'], &$title, &$content, &$time]);
+                    $json_content = json_decode($url_content['http_body']);
+                    if (!$json_content)
+                    {
+                        $this->logger->warning("Feedeliser::getItemContent($feed, $url): error decoding JSON");
+                    }
+                    else
+                    {
+                        // For JSON, reuse original values and pass them to the callback
+                        $title = $original_title;
+                        $content = $original_content;
+                        $time = $original_time;
+                        call_user_func_array($feed->getJsonItemCallback(), [$json_content, &$title, &$content, &$time]);
+                    }
                 }
 
                 // Reuse original values if new ones are empty

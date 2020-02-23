@@ -119,12 +119,14 @@ class Feed
 
     /**
      * Callback returning all the items from JSON data, only and required for source_type=SOURCE_JSON
+     * Must return an array of arrays, with required key `link` and optional keys `title`, `content`, `time` (timestamp)
      * @var callable
      */
     protected $json_items_callback;
 
     /**
      * Callback returning values from a JSON item, only and required for source_type=SOURCE_JSON
+     * Must return an array with optional keys `title`, `content`, `time` (timestamp)
      * @var callable
      */
     protected $json_item_callback;
@@ -445,6 +447,16 @@ class Feed
     }
 
     /**
+     * Get the feed source type
+     * 
+     * @return string
+     */
+    public function getSourceType(): string
+    {
+        return $this->source_type;
+    }
+
+    /**
      * Get the item callback
      * 
      * @return ?callable
@@ -462,6 +474,16 @@ class Feed
     public function getReadability(): bool
     {
         return $this->readability;
+    }
+
+    /**
+     * Get the item callback, for JSON source
+     * 
+     * @return ?callable
+     */
+    public function getJsonItemCallback(): ?callable
+    {
+        return $this->json_item_callback;
     }
 
     /**
@@ -743,40 +765,7 @@ class Feed
                     }
                 }
                 
-                // Get the content from the page or from cache if available
-                if (!$original_title || !$original_content || !$original_time)
-                {
-                    $item_content = $this->feedeliser->getItemContent($this, $link, $original_title, $original_content, $original_time);
-
-                    if (!$original_title && $item_content['title'])
-                    {
-                        $original_title = $item_content['title'];
-                    }
-                    if (!$original_content && $item_content['content'])
-                    {
-                        $original_content = $item_content['content'];
-                    }
-                    if (!$original_time && $item_content['time'])
-                    {
-                        $original_time = $item_content['time'];
-                    }
-                }
-
-                $item_array = [
-                    'title' => ['_cdata' => $original_title],
-                    'link' => $link,
-                    'description' => ['_cdata' => $original_content],
-                    'pubDate' => date(DATE_RSS, $original_time),
-                    'guid' => $link,
-                ];
-
-                // Additional tags for podcasts
-                if ($this->podcast)
-                {
-                    $this->addPodcastElements($item_array);
-                }
-
-                $xml['channel']['item'][] = $item_array;
+                $xml['channel']['item'][] = $this->prepareItemArray($link, $original_title, $original_content, $original_time);
             }
 
             $output_data = ArrayToXml::convert($xml, 'rss');
@@ -789,17 +778,49 @@ class Feed
             foreach ($items as $this->process_item_json)
             {
                 $item_num++;
-                $item_array = call_user_func($this->json_item_callback, $this->feedeliser, $this->process_item_json);
+                $original_title = $original_content = '';
+                $original_time = 0;
 
-                //TODO check item elements
-
-                // Additional tags for podcasts
-                if ($this->podcast)
+                // Item link: required
+                if (!isset($this->process_item_json['link']))
                 {
-                    $this->addPodcastElements($item_array);
+                    $this->logger->error("Feed::generate($this): no link provided for item #$item_num");
+                    continue;
+                }
+                $link = Feedeliser::cleanLink($this->process_item_json['link']);
+                if ($link && $this->item_link_prefix)
+                {
+                    $link = $this->item_link_prefix . $link;
+                }
+                if (!$link || !filter_var($link, FILTER_VALIDATE_URL))
+                {
+                    $this->logger->warning("Feed::generate($this): empty link for item #$item_num");
+                    continue;
                 }
 
-                $xml['channel']['item'][] = $item_array;
+                // Item title: optional
+                if (isset($this->process_item_json['title']))
+                {
+                    $original_title = $this->process_item_json['title'];
+                }
+
+                // Item content: optional
+                if (isset($this->process_item_json['content']))
+                {
+                    $original_content = $this->process_item_json['content'];
+                }
+
+                // Item date-time: optional
+                if (isset($this->process_item_json['time']))
+                {
+                    $ts = strtotime($this->process_item_json['time']);
+                    if ($ts !== false)
+                    {
+                        $original_time = $ts;
+                    }
+                }
+
+                $xml['channel']['item'][] = $this->prepareItemArray($link, $original_title, $original_content, $original_time);
             }
 
             $output_data = ArrayToXml::convert($xml, 'rss');
@@ -864,6 +885,60 @@ class Feed
         }
 
         return $xml;
+    }
+
+    /**
+     * Return an item array to be added to the final feed
+     * 
+     * The original values are used if available, otherwise missing values are retrieved from the item URL
+     * 
+     * @param string $link the item URL
+     * @param string $original_title the item title from the main feed, can be empty
+     * @param string $original_content the item content from the main feed, can be empty
+     * @param int $original_time the item timestamp from the main feed, can be null
+     * 
+     * @return array
+     */
+    protected function prepareItemArray(string $link, string $original_title, string $original_content, int $original_time): array
+    {
+        // Get the content from the page or from cache if available
+        if (!$original_title || !$original_content || !$original_time)
+        {
+            $json_link = $this->source_type == self::SOURCE_JSON && isset($this->process_item_json['json_link'])
+                ? $this->process_item_json['json_link']
+                : null;
+
+            $item_content = $this->feedeliser->getItemContent($this, $link, $original_title, $original_content, $original_time, $json_link);
+
+            if (!$original_title && $item_content['title'])
+            {
+                $original_title = $item_content['title'];
+            }
+            if (!$original_content && $item_content['content'])
+            {
+                $original_content = $item_content['content'];
+            }
+            if (!$original_time && $item_content['time'])
+            {
+                $original_time = $item_content['time'];
+            }
+        }
+
+        $item_array = [
+            'title' => ['_cdata' => $original_title],
+            'link' => $link,
+            'description' => ['_cdata' => $original_content],
+            'pubDate' => date(DATE_RSS, $original_time),
+            'guid' => $link,
+        ];
+
+        // Additional tags for podcasts
+        if ($this->podcast)
+        {
+            $this->addPodcastElements($item_array);
+        }
+
+        return $item_array;
     }
 
     /**
