@@ -79,13 +79,13 @@ class Feedeliser
      * Logger
      * @var \Psr\Log\LoggerInterface
      */
-    protected $logger;
+    public $logger;
 
     /**
      * SQLite feeds cache
      * @var \SQLite3
      */
-    protected static $feeds_cache;
+    public static $feeds_cache;
 
     /**
      * Whether to use an IP address from those in static::$curl_ip_addresses, if available
@@ -134,7 +134,7 @@ class Feedeliser
     /**
      * Open the SQLite cache connection
      */
-    protected function openCache()
+    public static function openCache()
     {
         if (!static::$feeds_cache)
         {
@@ -173,12 +173,12 @@ class Feedeliser
      * Perform a network call
      * 
      * @param string $url URL
-     * @param ?array $post_content the POST content
+     * @param ?mixed $post_content the POST content
      * @param ?string $output_file a file to save the output to
      * 
      * @return array an array with the keys "http_body" and "http_code"
      */
-    protected function internalCurlContent(string $url, array $post_content = null, string $output_file = null)
+    protected function internalCurlContent(string $url, $post_content = null, string $output_file = null)
     {
         $ch = curl_init($url);
 
@@ -192,18 +192,18 @@ class Feedeliser
             'Upgrade-Insecure-Requests: 1',
             'Connection: keep-alive',
         ));
-        
+
         // Storing cookies set by websites decreases the probability of being blocked
         curl_setopt($ch, CURLOPT_COOKIEFILE, static::$curl_cookie_jar);
         curl_setopt($ch, CURLOPT_COOKIEJAR, static::$curl_cookie_jar);
         curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
-        
+
         // Outbound IP address
         if (static::$curl_use_ip_address)
         {
             $key = array_rand(static::$curl_ip_addresses);
             curl_setopt($ch, CURLOPT_INTERFACE, static::$curl_ip_addresses[$key]);
-            $this->logger->debug("Feedeliser::getUrlContent($url): use <" . static::$curl_ip_addresses[$key] . "> outbound IP address");
+            $this->logger->debug("Feedeliser::internalCurlContent($url): use <" . static::$curl_ip_addresses[$key] . "> outbound IP address");
         }
 
         // POST content
@@ -219,7 +219,7 @@ class Feedeliser
             $ofp = fopen($output_file, 'w');
             curl_setopt($ch, CURLOPT_FILE, $ofp);
         }
-        
+
         $http_body = curl_exec($ch);
         $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         curl_close($ch);
@@ -227,7 +227,7 @@ class Feedeliser
             fclose($ofp);
         }
         
-        $this->logger->debug("Feedeliser::getUrlContent($url): $http_code");
+        $this->logger->debug("Feedeliser::internalCurlContent($url): $http_code");
 
         return [
             'http_body' => $http_body,
@@ -252,11 +252,11 @@ class Feedeliser
      * Post content to a URL
      * 
      * @param string $url URL
-     * @param ?array $content the POST content
+     * @param ?mixed $content the POST content
      * 
      * @return array an array with the keys "http_body" and "http_code"
      */
-    public function postUrlContent(string $url, array $content = null): array
+    public function postUrlContent(string $url, $content = null): array
     {
         return $this->internalCurlContent($url, $content, null);
     }
@@ -289,7 +289,7 @@ class Feedeliser
     {
         $this->logger->debug("Feedeliser::getItemContent($feed, $url): start");
         
-        $this->openCache();
+        self::openCache();
         $status = $title = $content = '';
         $time = 0;
         $cache_available = true;
@@ -311,7 +311,21 @@ class Feedeliser
             $get_stmt->bindValue(':feed', $feed->getName(), SQLITE3_TEXT);
             $get_stmt->bindValue(':url', $url, SQLITE3_TEXT);
             $result = $get_stmt->execute();
-            $row = $result->fetchArray();
+            if ($result)
+            {
+                $row = $result->fetchArray();
+            }
+            else
+            {
+                $row = null;
+                $this->logger->warning(
+                    "Feedeliser::getItemContent($feed, $url): SQLite error while getting content from cache",
+                    [
+                        'code' => static::$feeds_cache->lastErrorCode(),
+                        'message' => static::$feeds_cache->lastErrorMsg(),
+                    ]
+                );
+            }
 
             // A result: read values and update the last access timestamp
             if ($row)
@@ -657,7 +671,7 @@ class Feedeliser
         $file = '';
 
         // Check in cache first
-        $this->openCache();
+        self::openCache();
 
         $get_stmt = static::$feeds_cache->prepare(
             'SELECT file FROM image WHERE feed = :feed AND type = :type AND id = :id'
@@ -852,7 +866,7 @@ class Feedeliser
      */
     public function clearCache(Feed $feed)
     {
-        $this->openCache();
+        self::openCache();
 
         // Calculate the date before which entries must be deleted
         $last_access = time() - $feed->getCacheLimit();
